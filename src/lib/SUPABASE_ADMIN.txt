@@ -1,0 +1,12 @@
+# Supabase admin / service role
+# -----------------------------
+# Put the service role key ONLY in the project root `.env` file:
+#
+#   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+#
+# Do NOT use a VITE_ prefix. Vite would expose it in the browser and anyone
+# could take full admin access to your database.
+#
+# When you are ready to wire admin features, we will use this key from:
+# - Supabase Edge Functions secrets, or
+# - a small local Node script / backend — not from React.

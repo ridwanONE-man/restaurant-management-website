@@ -1,0 +1,394 @@
+/* =============================================================================
+   Central Fast Food — visual polish layer (loaded after page styles,
+   before responsive.css). Works for both light and dark themes.
+   ============================================================================= */
+
+/* ---------- Brand mark ---------- */
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--brand-gradient);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.35);
+}
+
+.brand-mark--sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.brand-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.brand-name strong {
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-name small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---------- Shell ---------- */
+.shell,
+.shell-main {
+  background: transparent;
+}
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--line);
+}
+
+.sidebar__brand {
+  padding: 0.25rem 0.35rem 0.5rem;
+  gap: 0.7rem;
+  letter-spacing: 0;
+}
+
+.sidebar__nav {
+  gap: 0.25rem;
+}
+
+.nav-item {
+  position: relative;
+  border-radius: 12px;
+  padding: 0.72rem 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.nav-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: rgba(var(--accent-rgb), 0.13);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -1rem;
+  top: 22%;
+  bottom: 22%;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+}
+
+.live-status {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+.profile-avatar {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  color: var(--accent);
+}
+
+.admin-mode,
+.sidebar-logout,
+.mobile-bar__menu,
+.sidebar__close {
+  border-color: var(--line);
+  color: var(--text-2);
+  background: var(--surface);
+}
+
+.admin-mode:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- Cards & panels ---------- */
+.panel,
+.item-card,
+.price-card,
+.menu-card,
+.kpi-card,
+.table-card,
+.settings-card,
+.chart-card,
+.metric-card {
+  box-shadow: var(--shadow-card);
+}
+
+.page-head h1 {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.eyebrow {
+  color: var(--accent);
+}
+
+.eyebrow::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15);
+}
+
+/* ---------- Inputs ---------- */
+.money-input,
+.field__control,
+.search,
+.staff-name-input {
+  background: var(--surface-3);
+  border-color: var(--line);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.money-input:focus-within,
+.field__control:focus-within,
+.search:focus-within,
+.staff-name-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
+}
+
+input,
+select,
+textarea {
+  color: var(--text);
+}
+
+/* ---------- Primary buttons: one consistent brand style ---------- */
+.login-btn,
+.primary-btn,
+.save-btn,
+.expense-save-btn,
+.primary-action,
+.staff-add-btn,
+.date-range__apply,
+.apply-btn {
+  background: var(--brand-gradient);
+  color: #fff;
+  border: 0;
+  box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.28);
+  transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.login-btn:hover,
+.primary-btn:hover,
+.save-btn:hover,
+.expense-save-btn:hover,
+.primary-action:hover,
+.staff-add-btn:hover,
+.date-range__apply:hover,
+.apply-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 26px rgba(var(--accent-rgb), 0.36);
+}
+
+.login-btn:active,
+.save-btn:active,
+.primary-btn:active,
+.expense-save-btn:active {
+  transform: translateY(1px);
+}
+
+.loan-add-btn {
+  background: var(--accent-2);
+  color: #1d1203;
+}
+
+/* Counter +/− buttons */
+.counter-btn.plus {
+  background: var(--brand-gradient);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ---------- Login: the hero sits on a photo, keep it dark in both themes ---------- */
+.login-hero {
+  background:
+    linear-gradient(160deg, rgba(20, 10, 4, 0.55) 0%, rgba(20, 10, 4, 0.78) 55%, rgba(12, 6, 2, 0.92) 100%),
+    url('/kitchen-hero.jpg') center / cover no-repeat;
+  color: #fff;
+}
+
+.login-hero__overlay {
+  background: radial-gradient(ellipse at 25% 35%, rgba(255, 122, 51, 0.22) 0%, transparent 60%);
+}
+
+.login-hero__copy p {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.login-hero__stats {
+  border-top-color: rgba(255, 255, 255, 0.18);
+}
+
+.login-hero .brand {
+  color: #fff;
+}
+
+.login-hero .brand-name strong {
+  color: #fff;
+}
+
+.login-hero .brand-name small {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.login-hero__copy h1 .accent-text {
+  background: linear-gradient(135deg, #ffb27a, #ff6a2a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.login-hero .stat-label.green {
+  color: #6ee7a8;
+}
+
+.login-hero .stat-label.orange {
+  color: #ffc07a;
+}
+
+.login-panel {
+  background: var(--bg);
+}
+
+/* ---------- Theme switcher (Settings) ---------- */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.theme-option:hover {
+  border-color: var(--line-strong);
+}
+
+.theme-option.is-active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--text);
+}
+
+.theme-option__label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.theme-option__preview {
+  width: 100%;
+  height: 54px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 28% 1fr;
+  overflow: hidden;
+}
+
+.theme-option__preview i {
+  display: block;
+}
+
+.theme-option__preview .pv-side {
+  border-right: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.theme-option__preview .pv-main {
+  padding: 8px;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+}
+
+.theme-option__preview .pv-bar {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.pv-light .pv-side { background: #ffffff; }
+.pv-light .pv-main { background: #f6f3ef; }
+.pv-light .pv-bar { background: #e8e1d9; }
+.pv-dark .pv-side { background: #121010; }
+.pv-dark .pv-main { background: #1b1816; }
+.pv-dark .pv-bar { background: #3a332e; }
+.pv-system .pv-side { background: linear-gradient(135deg, #ffffff 50%, #121010 50%); }
+.pv-system .pv-main { background: linear-gradient(135deg, #f6f3ef 50%, #1b1816 50%); }
+.pv-system .pv-bar { background: #8a8079; }
+.theme-option__preview .pv-bar.pv-accent { width: 45%; background: linear-gradient(135deg, #ff8a3d, #f4511e); }
+
+@media (max-width: 420px) {
+  .theme-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-option {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .theme-option__preview {
+    width: 72px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+}
+
+/* Smooth colour change when switching theme */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    fill 0.25s ease !important;
+}
+
+@media (max-width: 1099px) and (min-width: 768px) {
+  .nav-item.active::before {
+    display: none;
+  }
+}
+
+.head-actions a,
+a.date-chip {
+  text-decoration: none;
+}

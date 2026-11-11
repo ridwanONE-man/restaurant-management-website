@@ -50,7 +50,7 @@ svg {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 3px solid #2a2a2a;
+  border: 3px solid var(--line);
   border-top-color: var(--green);
   animation: boot-spin 0.8s linear infinite;
 }
@@ -221,8 +221,8 @@ svg {
     gap: 0.7rem 0.9rem;
     padding: 0.95rem 1rem;
     margin-bottom: 0.75rem;
-    background: #161616;
-    border: 1px solid #262626;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 14px;
   }
 
@@ -257,7 +257,7 @@ svg {
 
   .history-table td[data-label='Date'] {
     padding-bottom: 0.6rem;
-    border-bottom: 1px solid #242424;
+    border-bottom: 1px solid var(--line);
   }
 
   .history-table .row-actions {

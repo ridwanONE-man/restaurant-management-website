@@ -1,5 +1,5 @@
 -- =============================================================================
--- GRILL & GRAIN — realtime sync (run after schema.sql)
+-- Central Fast Food — realtime sync (run after schema.sql)
 -- Enables live updates across every device, adds an atomic save_night RPC,
 -- and fixes the security advisor warnings.
 -- =============================================================================

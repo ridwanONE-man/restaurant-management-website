@@ -5,10 +5,14 @@ import {
   Download,
   KeyRound,
   LogOut,
+  Monitor,
+  Moon,
+  Palette,
   RotateCcw,
   Save,
   Shield,
   Store,
+  Sun,
   Tags,
   Trash2,
   UserRound,
@@ -18,6 +22,13 @@ import { useAuth } from './auth'
 import { useLedger } from './ledger'
 import { usePricing } from './pricing'
 import { useSettings } from './appSettings'
+import { useTheme, type ThemeMode } from './theme'
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+]
 import LiveClock from './LiveClock'
 import { downloadTextFile } from './report'
 import './Settings.css'
@@ -27,6 +38,7 @@ export default function SettingsPage() {
   const { email, logout, changePassword, history, clearHistory } = useAuth()
   const { settings, updateSettings, resetSettings } = useSettings()
   const { resetDefaults } = usePricing()
+  const { mode: themeMode, setMode: setThemeMode } = useTheme()
   const { resetExpenses, clearNightDraft } = useLedger()
 
   const [kitchenName, setKitchenName] = useState(settings.kitchenName)
@@ -46,7 +58,7 @@ export default function SettingsPage() {
 
   function saveProfile() {
     updateSettings({
-      kitchenName: kitchenName.trim() || 'GRILL & GRAIN',
+      kitchenName: kitchenName.trim() || 'Central Fast Food',
       managerName: managerName.trim() || 'Shift Manager',
       role: role.trim() || 'Kitchen Admin',
       shiftLabel: shiftLabel.trim() || 'Night Service',
@@ -111,7 +123,7 @@ export default function SettingsPage() {
   function onResetAppSettings() {
     if (!confirmAction('Reset kitchen profile and preference toggles?')) return
     resetSettings()
-    setKitchenName('GRILL & GRAIN')
+    setKitchenName('Central Fast Food')
     setManagerName('Shift Manager')
     setRole('Kitchen Admin')
     setShiftLabel('Night Service')
@@ -126,7 +138,7 @@ export default function SettingsPage() {
       return
     }
     downloadTextFile(
-      `grill-grain-history-${new Date().toISOString().slice(0, 10)}.json`,
+      `central-fast-food-history-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(history, null, 2),
       'application/json;charset=utf-8',
     )
@@ -146,7 +158,7 @@ export default function SettingsPage() {
           <p className="eyebrow">KITCHEN SETUP</p>
           <h1>Settings</h1>
           <p className="settings-lead">
-            Manage kitchen profile, security, data, and sign out of GRILL &amp; GRAIN.
+            Manage kitchen profile, security, data, and sign out of Central Fast Food.
           </p>
         </div>
         <LiveClock />
@@ -156,6 +168,41 @@ export default function SettingsPage() {
       {actionError ? <p className="settings-banner is-error">{actionError}</p> : null}
 
       <div className="settings-grid">
+        <section className="panel appearance-panel">
+          <header>
+            <Palette size={18} className="accent-green" />
+            <div>
+              <h2>Appearance</h2>
+              <p>Choose light or dark mode — saved on this device</p>
+            </div>
+          </header>
+          <div className="theme-picker" role="radiogroup" aria-label="Color mode">
+            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={themeMode === value}
+                className={`theme-option ${themeMode === value ? 'is-active' : ''}`}
+                onClick={() => setThemeMode(value)}
+              >
+                <span className={`theme-option__preview pv-${value}`} aria-hidden>
+                  <i className="pv-side" />
+                  <span className="pv-main">
+                    <i className="pv-bar pv-accent" />
+                    <i className="pv-bar" />
+                    <i className="pv-bar" />
+                  </span>
+                </span>
+                <span className="theme-option__label">
+                  <Icon size={16} />
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="panel">
           <header>
             <Store size={18} className="accent-green" />

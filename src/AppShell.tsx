@@ -95,11 +95,11 @@ export default function AppShell() {
         >
           <Menu size={20} />
         </button>
+        <span className="brand-mark brand-mark--sm" aria-hidden>
+          <UtensilsCrossed size={15} strokeWidth={2.4} />
+        </span>
         <div className="mobile-bar__title">
-          <span className="mobile-bar__brand">
-            <UtensilsCrossed size={14} strokeWidth={2.4} />
-            {settings.kitchenName}
-          </span>
+          <span className="mobile-bar__brand">{settings.kitchenName}</span>
           <strong>{currentLabel}</strong>
         </div>
         <SyncPill compact />
@@ -113,8 +113,13 @@ export default function AppShell() {
 
       <aside className={`sidebar ${drawerOpen ? 'is-open' : ''}`} aria-label="Main navigation">
         <div className="sidebar__brand">
-          <UtensilsCrossed size={20} strokeWidth={2.3} />
-          <span className="sidebar__text">{settings.kitchenName}</span>
+          <span className="brand-mark">
+            <UtensilsCrossed size={19} strokeWidth={2.3} />
+          </span>
+          <span className="brand-name sidebar__text">
+            <strong>{settings.kitchenName}</strong>
+            <small>Kitchen Manager</small>
+          </span>
           <button
             type="button"
             className="sidebar__close"

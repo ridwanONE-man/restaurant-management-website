@@ -1,5 +1,5 @@
 -- =============================================================================
--- GRILL & GRAIN — full database schema for Supabase
+-- Central Fast Food — full database schema for Supabase
 -- =============================================================================
 -- How to use:
 -- 1. Open Supabase → SQL Editor → New query
@@ -77,7 +77,7 @@ for each row execute function public.handle_new_user();
 -- ---------------------------------------------------------------------------
 create table if not exists public.kitchen_settings (
   id uuid primary key default gen_random_uuid(),
-  kitchen_name text not null default 'GRILL & GRAIN',
+  kitchen_name text not null default 'Central Fast Food',
   manager_name text not null default 'Shift Manager',
   role_label text not null default 'Kitchen Admin',
   shift_label text not null default 'Night Service',
@@ -94,7 +94,7 @@ before update on public.kitchen_settings
 for each row execute function public.set_updated_at();
 
 insert into public.kitchen_settings (kitchen_name, manager_name, role_label, shift_label)
-select 'GRILL & GRAIN', 'Shift Manager', 'Kitchen Admin', 'Night Service'
+select 'Central Fast Food', 'Shift Manager', 'Kitchen Admin', 'Night Service'
 where not exists (select 1 from public.kitchen_settings);
 
 -- ---------------------------------------------------------------------------

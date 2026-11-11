@@ -28,7 +28,7 @@ type SettingsContextValue = {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  kitchenName: 'GRILL & GRAIN',
+  kitchenName: 'Central Fast Food',
   managerName: 'Shift Manager',
   role: 'Kitchen Admin',
   shiftLabel: 'Night Service',

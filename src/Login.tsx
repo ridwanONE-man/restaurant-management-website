@@ -43,19 +43,24 @@ export default function Login() {
         <div className="login-hero__overlay" />
         <div className="login-hero__content">
           <div className="brand">
-            <UtensilsCrossed size={22} strokeWidth={2.25} />
-            <span>GRILL & GRAIN</span>
+            <span className="brand-mark">
+              <UtensilsCrossed size={20} strokeWidth={2.3} />
+            </span>
+            <span className="brand-name">
+              <strong>Central Fast Food</strong>
+              <small>Kitchen Manager</small>
+            </span>
           </div>
 
           <div className="login-hero__copy">
             <h1>
-              Master the Fire,
+              Fresh food, fast.
               <br />
-              Manage the Profit.
+              <span className="accent-text">Every sale counted.</span>
             </h1>
             <p>
-              The unified operating system for high-performance kitchens.
-              Decisive data at your fingertips.
+              Track tonight&apos;s sales, loans and expenses — live on every phone, tablet and
+              laptop in the kitchen.
             </p>
           </div>
 
@@ -75,8 +80,8 @@ export default function Login() {
       <section className="login-panel">
         <div className="login-panel__inner">
           <header>
-            <h2>Welcome Back, Chef</h2>
-            <p>Access your kitchen dashboard to start service.</p>
+            <h2>Welcome back 👋</h2>
+            <p>Sign in to Central Fast Food to start tonight’s service.</p>
           </header>
 
           <form onSubmit={onSubmit} noValidate>

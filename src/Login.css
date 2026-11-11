@@ -8,7 +8,7 @@
 .login-hero {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.72) 55%, rgba(0, 0, 0, 0.88) 100%),
+    linear-gradient(180deg, rgba(var(--shadow-rgb), calc(0.55 * var(--shadow-k))) 0%, rgba(var(--shadow-rgb), calc(0.72 * var(--shadow-k))) 55%, rgba(var(--shadow-rgb), calc(0.88 * var(--shadow-k))) 100%),
     url("/kitchen-hero.jpg") center / cover no-repeat;
   padding: 2.5rem 3rem 2.75rem;
   display: flex;
@@ -18,7 +18,7 @@
 .login-hero__overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 30% 40%, transparent 0%, rgba(0, 0, 0, 0.35) 70%);
+  background: radial-gradient(ellipse at 30% 40%, transparent 0%, rgba(var(--shadow-rgb), calc(0.35 * var(--shadow-k))) 70%);
   pointer-events: none;
 }
 
@@ -57,7 +57,7 @@
 
 .login-hero__copy p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(var(--tint-rgb), 0.78);
   font-size: 1.05rem;
   line-height: 1.55;
   max-width: 28rem;
@@ -67,7 +67,7 @@
   display: flex;
   gap: 3.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: 1px solid rgba(var(--tint-rgb), 0.18);
 }
 
 .login-hero__stats strong {
@@ -84,7 +84,7 @@
 }
 
 .stat-label.green {
-  color: var(--green);
+  color: var(--success);
 }
 
 .stat-label.orange {
@@ -92,7 +92,7 @@
 }
 
 .login-panel {
-  background: #111111;
+  background: var(--bg-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,15 +134,15 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  background: #1c1c1c;
-  border: 1px solid #2c2c2c;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0 0.95rem;
   min-height: 52px;
 }
 
 .field__control svg {
-  color: #8b8b8b;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -159,7 +159,7 @@
 .icon-btn {
   border: 0;
   background: transparent;
-  color: #8b8b8b;
+  color: var(--text-muted);
   padding: 0.2rem;
   display: inline-flex;
 }
@@ -203,7 +203,7 @@
   border: 0;
   border-radius: 10px;
   background: var(--green);
-  color: #0b0b0b;
+  color: var(--on-accent);
   font-weight: 700;
   letter-spacing: 0.08em;
   font-size: 0.95rem;
@@ -227,8 +227,8 @@
   margin-top: 1.75rem;
   padding: 0.85rem 1rem;
   border-radius: 10px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -246,8 +246,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.7);
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(var(--success-rgb), 0.7);
 }
 
 .help-text {

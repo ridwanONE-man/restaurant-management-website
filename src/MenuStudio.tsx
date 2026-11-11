@@ -133,7 +133,7 @@ export default function MenuStudio() {
   }
 
   function onResetMenu() {
-    if (!window.confirm('Restore the original GRILL & GRAIN menu? Custom items will be lost.')) return
+    if (!window.confirm('Restore the original Central Fast Food menu? Custom items will be lost.')) return
     resetDefaults()
     cancelEdit()
     showFlash('Menu restored to defaults.')

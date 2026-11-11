@@ -9,11 +9,11 @@
   margin-bottom: 1.15rem;
   padding: 1.5rem 1.55rem;
   border-radius: 22px;
-  border: 1px solid #2c2c2c;
+  border: 1px solid var(--line);
   background:
-    radial-gradient(circle at 12% 20%, rgba(74, 222, 128, 0.18), transparent 42%),
-    radial-gradient(circle at 88% 10%, rgba(245, 160, 90, 0.14), transparent 40%),
-    linear-gradient(145deg, #161616, #101010 55%, #0d0d0d);
+    radial-gradient(circle at 12% 20%, rgba(var(--accent-rgb), 0.18), transparent 42%),
+    radial-gradient(circle at 88% 10%, rgba(var(--accent-2-rgb), 0.14), transparent 40%),
+    linear-gradient(145deg, var(--surface), var(--bg-2) 55%, var(--bg));
   overflow: hidden;
 }
 
@@ -33,7 +33,7 @@
 .menu-hero__copy > p {
   margin: 0;
   max-width: 34rem;
-  color: #a8b0bc;
+  color: var(--text-2);
   line-height: 1.55;
   font-size: 0.98rem;
 }
@@ -49,8 +49,8 @@
   min-width: 6.5rem;
   padding: 0.7rem 0.85rem;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(var(--shadow-rgb), calc(0.35 * var(--shadow-k)));
+  border: 1px solid rgba(var(--tint-rgb), 0.06);
 }
 
 .menu-hero__stats span {
@@ -68,7 +68,7 @@
 }
 
 .menu-hero__stats .live {
-  color: var(--green);
+  color: var(--success);
 }
 
 .menu-hero__side {
@@ -89,27 +89,27 @@
   justify-content: center;
   gap: 0.45rem;
   background:
-    radial-gradient(circle at 50% 30%, rgba(74, 222, 128, 0.25), transparent 55%),
-    #0f1411;
-  border: 1px solid rgba(74, 222, 128, 0.28);
-  color: #d1fae5;
+    radial-gradient(circle at 50% 30%, rgba(var(--accent-rgb), 0.25), transparent 55%),
+    var(--bg);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  color: var(--accent-soft);
   animation: menuPulse 4.5s ease-in-out infinite;
 }
 
 .menu-hero__orb span {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 @keyframes menuPulse {
   0%,
   100% {
     transform: translateY(0);
-    box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+    box-shadow: 0 0 0 rgba(var(--accent-rgb), 0);
   }
   50% {
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(74, 222, 128, 0.08);
+    box-shadow: 0 12px 30px rgba(var(--accent-rgb), 0.08);
   }
 }
 
@@ -117,17 +117,17 @@
   margin: 0 0 1rem;
   padding: 0.8rem 1rem;
   border-radius: 12px;
-  background: rgba(74, 222, 128, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.3);
-  color: #d1fae5;
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  color: var(--accent-soft);
   font-size: 0.92rem;
 }
 
 .menu-studio .panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 35%),
-    #151515;
-  border: 1px solid #2a2a2a;
+    linear-gradient(180deg, rgba(var(--tint-rgb), 0.03), transparent 35%),
+    var(--surface);
+  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 1.2rem 1.25rem 1.3rem;
   margin-bottom: 1rem;
@@ -179,9 +179,9 @@
 .price-field {
   min-height: 46px;
   border-radius: 12px;
-  border: 1px solid #333;
-  background: #101010;
-  color: #fff;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text);
   padding: 0 0.9rem;
   font-size: 0.95rem;
 }
@@ -209,7 +209,7 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #fff;
+  color: var(--text);
   min-height: 44px;
   min-width: 0;
   font-size: 0.95rem;
@@ -233,9 +233,9 @@
   gap: 0.25rem;
   min-height: 64px;
   border-radius: 12px;
-  border: 1px solid #2f2f2f;
-  background: #101010;
-  color: #c4c9d1;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text-2);
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -247,17 +247,17 @@
 
 .icon-picker__grid button:hover {
   transform: translateY(-2px);
-  border-color: #444;
+  border-color: var(--line-strong);
 }
 
 .icon-picker__grid button.active {
-  border-color: rgba(74, 222, 128, 0.5);
-  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--green);
 }
 
 .icon-picker__grid button.active em {
-  color: rgba(74, 222, 128, 0.85);
+  color: rgba(var(--accent-rgb), 0.85);
 }
 
 .composer-actions {
@@ -283,7 +283,7 @@
 .primary-action {
   border: 0;
   background: var(--green);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
 
 .primary-action:hover {
@@ -291,14 +291,14 @@
 }
 
 .ghost-chip {
-  border: 1px solid #333;
+  border: 1px solid var(--line-strong);
   background: transparent;
-  color: #d1d5db;
+  color: var(--text-2);
 }
 
 .ghost-chip:hover {
-  border-color: #f5a05a;
-  color: #f5a05a;
+  border-color: var(--accent-2);
+  color: var(--accent-2);
 }
 
 .menu-error {
@@ -321,20 +321,20 @@
   min-height: 38px;
   padding: 0 0.85rem;
   border-radius: 999px;
-  border: 1px solid #2f2f2f;
-  background: #141414;
-  color: #b8bfc8;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text-2);
   font-size: 0.84rem;
 }
 
 .menu-filters button b {
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 700;
 }
 
 .menu-filters button.active {
-  border-color: rgba(74, 222, 128, 0.45);
-  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--green);
 }
 
@@ -355,44 +355,44 @@
   align-items: center;
   padding: 0.95rem 1rem;
   border-radius: 16px;
-  border: 1px solid #2a2a2a;
-  background: #141414;
+  border: 1px solid var(--line);
+  background: var(--surface);
   animation: menuCardIn 0.35s ease both;
   transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .menu-card:hover {
   transform: translateY(-3px);
-  border-color: #3a3a3a;
+  border-color: var(--line-strong);
 }
 
 .menu-card.is-editing {
-  border-color: rgba(74, 222, 128, 0.45);
-  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.15);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15);
 }
 
 .menu-card--grill {
   background:
-    radial-gradient(circle at 0% 0%, rgba(245, 160, 90, 0.12), transparent 50%),
-    #141414;
+    radial-gradient(circle at 0% 0%, rgba(var(--accent-2-rgb), 0.12), transparent 50%),
+    var(--surface);
 }
 
 .menu-card--plates {
   background:
-    radial-gradient(circle at 0% 0%, rgba(74, 222, 128, 0.1), transparent 50%),
-    #141414;
+    radial-gradient(circle at 0% 0%, rgba(var(--accent-rgb), 0.1), transparent 50%),
+    var(--surface);
 }
 
 .menu-card--sides {
   background:
-    radial-gradient(circle at 0% 0%, rgba(251, 191, 36, 0.1), transparent 50%),
-    #141414;
+    radial-gradient(circle at 0% 0%, rgba(var(--warn-rgb), 0.1), transparent 50%),
+    var(--surface);
 }
 
 .menu-card--juice {
   background:
-    radial-gradient(circle at 0% 0%, rgba(96, 165, 250, 0.12), transparent 50%),
-    #141414;
+    radial-gradient(circle at 0% 0%, rgba(var(--info-rgb), 0.12), transparent 50%),
+    var(--surface);
 }
 
 @keyframes menuCardIn {
@@ -412,8 +412,8 @@
   border-radius: 14px;
   display: grid;
   place-items: center;
-  background: #0f0f0f;
-  border: 1px solid #2f2f2f;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
   color: var(--green);
 }
 
@@ -432,7 +432,7 @@
 }
 
 .menu-card strong {
-  color: #f5a05a;
+  color: var(--accent-2);
   font-size: 0.95rem;
 }
 
@@ -448,9 +448,9 @@
   display: grid;
   place-items: center;
   border-radius: 9px;
-  border: 1px solid #333;
-  background: #101010;
-  color: #c4c9d1;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text-2);
 }
 
 .menu-card__actions button:hover {
@@ -460,7 +460,7 @@
 
 .menu-card__actions button.danger:hover {
   border-color: var(--red);
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 
 .menu-empty {
@@ -468,13 +468,13 @@
   text-align: center;
   padding: 2.5rem 1rem;
   border-radius: 16px;
-  border: 1px dashed #333;
-  color: #9ca3af;
+  border: 1px dashed var(--line-strong);
+  color: var(--text-muted);
 }
 
 .menu-empty h3 {
   margin: 0.7rem 0 0.35rem;
-  color: #fff;
+  color: var(--text);
 }
 
 .menu-empty p {

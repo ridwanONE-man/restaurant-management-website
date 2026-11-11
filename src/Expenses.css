@@ -5,16 +5,16 @@
 .expenses-lead {
   margin: 0.55rem 0 0;
   max-width: 40rem;
-  color: #a8b0bc;
+  color: var(--text-2);
   line-height: 1.5;
   font-size: 0.95rem;
 }
 
 .expenses-page .panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
-    #151515;
-  border: 1px solid #292929;
+    linear-gradient(180deg, rgba(var(--tint-rgb), 0.025), transparent 30%),
+    var(--surface);
+  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 1.2rem 1.25rem 1.3rem;
   margin-bottom: 1rem;
@@ -46,8 +46,8 @@
 }
 
 .money-tiles > div {
-  background: #101010;
-  border: 1px solid #2a2a2a;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.85rem 0.95rem;
 }
@@ -64,11 +64,11 @@
 }
 
 .money-tiles .cash {
-  color: var(--green);
+  color: var(--success);
 }
 
 .money-tiles .loan {
-  color: #f5a05a;
+  color: var(--accent-2);
 }
 
 .expenses-hint {
@@ -108,8 +108,8 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  background: #101010;
-  border: 1px solid #303030;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
   border-radius: 11px;
   padding: 0 0.85rem;
   min-height: 46px;
@@ -121,7 +121,7 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #fff;
+  color: var(--text);
   font-size: 0.95rem;
   min-width: 0;
 }
@@ -132,19 +132,19 @@
   align-items: center;
   margin-top: 1rem;
   padding-top: 0.85rem;
-  border-top: 1px solid #2a2a2a;
-  color: #d1d5db;
+  border-top: 1px solid var(--line);
+  color: var(--text-2);
 }
 
 .subtotal-row strong {
-  color: #f5a05a;
+  color: var(--accent-2);
 }
 
 .staff-panel {
   background:
-    radial-gradient(circle at 8% 0%, rgba(245, 160, 90, 0.1), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
-    #151515 !important;
+    radial-gradient(circle at 8% 0%, rgba(var(--accent-2-rgb), 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(var(--tint-rgb), 0.025), transparent 30%),
+    var(--surface) !important;
 }
 
 .staff-add {
@@ -178,7 +178,7 @@
   border: 0;
   border-radius: 11px;
   background: var(--green);
-  color: #0a0a0a;
+  color: var(--on-accent);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -206,8 +206,8 @@
   align-items: center;
   padding: 0.45rem;
   border-radius: 12px;
-  background: #101010;
-  border: 1px solid #2a2a2a;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
 }
 
 .staff-index {
@@ -216,7 +216,7 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: #1c1c1c;
+  background: var(--surface-2);
   color: var(--text-dim);
   font-size: 0.75rem;
   font-weight: 700;
@@ -226,7 +226,7 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #fff;
+  color: var(--text);
   font-size: 0.95rem;
   min-width: 0;
   padding: 0.35rem 0.2rem;
@@ -241,10 +241,10 @@
   height: 2.1rem;
   display: grid;
   place-items: center;
-  border: 1px solid #333;
+  border: 1px solid var(--line-strong);
   border-radius: 9px;
   background: transparent;
-  color: #a8b0bc;
+  color: var(--text-2);
 }
 
 .staff-remove:hover {
@@ -254,9 +254,9 @@
 
 .final-panel {
   background:
-    radial-gradient(circle at 90% 0%, rgba(74, 222, 128, 0.12), transparent 45%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
-    #151515 !important;
+    radial-gradient(circle at 90% 0%, rgba(var(--success-rgb), 0.12), transparent 45%),
+    linear-gradient(180deg, rgba(var(--tint-rgb), 0.025), transparent 30%),
+    var(--surface) !important;
 }
 
 .net-benefit-layout {
@@ -279,23 +279,23 @@
   gap: 1rem;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;
-  background: #101010;
-  border: 1px solid #2a2a2a;
-  color: #d1d5db;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
 }
 
 .net-step.deduct-step strong {
-  color: #f0a090;
+  color: var(--danger);
 }
 
 .net-step.total-out {
   margin-top: 0.25rem;
-  border-color: rgba(240, 160, 144, 0.35);
-  background: rgba(240, 160, 144, 0.06);
+  border-color: rgba(var(--danger-rgb), 0.35);
+  background: rgba(var(--danger-rgb), 0.06);
 }
 
 .net-step.total-out strong {
-  color: #f0a090;
+  color: var(--danger);
   font-size: 1.05rem;
 }
 
@@ -308,9 +308,9 @@
   padding: 1.4rem 1.35rem;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 20% 20%, rgba(74, 222, 128, 0.22), transparent 55%),
-    linear-gradient(160deg, #122018, #0d0d0d 70%);
-  border: 1px solid rgba(74, 222, 128, 0.35);
+    radial-gradient(circle at 20% 20%, rgba(var(--success-rgb), 0.22), transparent 55%),
+    linear-gradient(160deg, var(--surface-accent), var(--bg) 70%);
+  border: 1px solid rgba(var(--success-rgb), 0.35);
   min-height: 100%;
 }
 
@@ -318,19 +318,19 @@
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   font-weight: 700;
-  color: rgba(74, 222, 128, 0.85);
+  color: rgba(var(--success-rgb), 0.85);
 }
 
 .net-hero strong {
   font-size: clamp(1.8rem, 3vw, 2.35rem);
   line-height: 1.1;
-  color: var(--green);
+  color: var(--success);
   letter-spacing: -0.03em;
 }
 
 .net-hero em {
   font-style: normal;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: 0.88rem;
   max-width: 16rem;
   line-height: 1.4;
@@ -338,13 +338,13 @@
 
 .net-hero.is-neg {
   background:
-    radial-gradient(circle at 20% 20%, rgba(239, 68, 68, 0.2), transparent 55%),
-    linear-gradient(160deg, #1a1010, #0d0d0d 70%);
-  border-color: rgba(239, 68, 68, 0.4);
+    radial-gradient(circle at 20% 20%, rgba(var(--danger-rgb), 0.2), transparent 55%),
+    linear-gradient(160deg, var(--surface-danger), var(--bg) 70%);
+  border-color: rgba(var(--danger-rgb), 0.4);
 }
 
 .net-hero.is-neg > span {
-  color: rgba(248, 113, 113, 0.9);
+  color: rgba(var(--danger-rgb), 0.9);
 }
 
 .net-hero.is-neg strong {
@@ -375,13 +375,13 @@
 
 .expense-save-btn {
   background: var(--green);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
 
 .expense-download-btn {
-  background: #1a1a1a;
-  color: #e5e7eb;
-  border: 1px solid #333;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
 }
 
 .expense-save-btn:hover,
@@ -397,15 +397,15 @@
 }
 
 .expenses-banner.is-ok {
-  background: rgba(74, 222, 128, 0.1);
-  border: 1px solid rgba(74, 222, 128, 0.28);
-  color: #d1fae5;
+  background: rgba(var(--success-rgb), 0.1);
+  border: 1px solid rgba(var(--success-rgb), 0.28);
+  color: var(--success-soft);
 }
 
 .expenses-banner.is-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fecaca;
+  background: rgba(var(--danger-rgb), 0.1);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
+  color: var(--danger-soft);
 }
 
 .expenses-page .head-actions {
@@ -418,17 +418,17 @@
 
 .ghost-clear {
   margin-top: 0;
-  border: 1px solid #333;
+  border: 1px solid var(--line-strong);
   background: transparent;
-  color: #d1d5db;
+  color: var(--text-2);
   border-radius: 10px;
   min-height: 46px;
   padding: 0 1rem;
 }
 
 .ghost-clear:hover {
-  border-color: #f5a05a;
-  color: #f5a05a;
+  border-color: var(--accent-2);
+  color: var(--accent-2);
 }
 
 @media (max-width: 960px) {

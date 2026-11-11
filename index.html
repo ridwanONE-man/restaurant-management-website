@@ -7,11 +7,23 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>GRILL & GRAIN</title>
+    <title>Central Fast Food</title>
+    <meta name="description" content="Central Fast Food — kitchen sales, loans, expenses and history in real time." />
+    <meta name="apple-mobile-web-app-title" content="Central Fast Food" />
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('cff-theme-mode') || 'system'
+          var dark = m === 'dark' || (m !== 'light' && !window.matchMedia('(prefers-color-scheme: light)').matches)
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#121010' : '#ffffff')
+        } catch (e) {}
+      })()
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
   </head>

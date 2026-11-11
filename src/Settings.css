@@ -9,7 +9,7 @@
 .settings-lead {
   margin: 0.55rem 0 0;
   max-width: 36rem;
-  color: #a8b0bc;
+  color: var(--text-2);
   line-height: 1.5;
   font-size: 0.95rem;
 }
@@ -22,15 +22,15 @@
 }
 
 .settings-banner.is-ok {
-  background: rgba(74, 222, 128, 0.1);
-  border: 1px solid rgba(74, 222, 128, 0.28);
-  color: #d1fae5;
+  background: rgba(var(--success-rgb), 0.1);
+  border: 1px solid rgba(var(--success-rgb), 0.28);
+  color: var(--success-soft);
 }
 
 .settings-banner.is-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fecaca;
+  background: rgba(var(--danger-rgb), 0.1);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
+  color: var(--danger-soft);
 }
 
 .settings-grid {
@@ -41,9 +41,9 @@
 
 .settings-page .panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
-    #151515;
-  border: 1px solid #292929;
+    linear-gradient(180deg, rgba(var(--tint-rgb), 0.025), transparent 30%),
+    var(--surface);
+  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 1.15rem 1.2rem 1.25rem;
 }
@@ -100,16 +100,16 @@
 .settings-fields input {
   min-height: 44px;
   border-radius: 11px;
-  border: 1px solid #303030;
-  background: #101010;
-  color: #fff;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text);
   padding: 0 0.9rem;
   font-size: 0.95rem;
 }
 
 .settings-fields input:focus {
-  outline: 1px solid rgba(74, 222, 128, 0.45);
-  border-color: rgba(74, 222, 128, 0.45);
+  outline: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-color: rgba(var(--accent-rgb), 0.45);
 }
 
 .settings-row-actions {
@@ -137,27 +137,27 @@
 .primary-btn {
   border: 0;
   background: var(--green);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
 
 .danger-btn {
   border: 0;
-  background: rgba(239, 68, 68, 0.16);
-  color: #fecaca;
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(var(--danger-rgb), 0.16);
+  color: var(--danger-soft);
+  border: 1px solid rgba(var(--danger-rgb), 0.35);
   width: 100%;
 }
 
 .ghost-btn {
-  border: 1px solid #333;
-  background: #101010;
-  color: #e5e7eb;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .danger-outline-btn {
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  border: 1px solid rgba(var(--danger-rgb), 0.4);
   background: transparent;
-  color: #fca5a5;
+  color: var(--danger-soft);
 }
 
 .primary-btn:hover,
@@ -168,8 +168,8 @@
 }
 
 .account-card {
-  background: #101010;
-  border: 1px solid #2a2a2a;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.95rem 1rem;
   margin-bottom: 0.9rem;
@@ -203,7 +203,7 @@
   gap: 1rem;
   align-items: center;
   padding: 0.85rem 0;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--line);
 }
 
 .toggle-row strong {
@@ -238,9 +238,9 @@
   min-height: 38px;
   padding: 0 0.85rem;
   border-radius: 10px;
-  border: 1px solid #303030;
-  background: #101010;
-  color: #d1d5db;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-2);
+  color: var(--text-2);
   text-decoration: none;
   font-size: 0.86rem;
 }
@@ -263,7 +263,7 @@
 }
 
 .data-note strong {
-  color: #e5e7eb;
+  color: var(--text);
 }
 
 .field-error {
@@ -273,7 +273,7 @@
 }
 
 .inline-ok {
-  color: var(--green);
+  color: var(--success);
   font-size: 0.88rem;
 }
 

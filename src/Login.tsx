@@ -12,19 +12,24 @@ import { useAuth } from './auth'
 import './Login.css'
 
 export default function Login() {
-  const { isAuthenticated, login } = useAuth()
+  const { ready, isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  if (isAuthenticated) return <Navigate to="/app/entry" replace />
+  if (ready && isAuthenticated) return <Navigate to="/app/entry" replace />
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    const result = login(email, password)
+    if (busy) return
+    setBusy(true)
+    setError('')
+    const result = await login(email, password)
+    setBusy(false)
     if (result.ok) {
       navigate('/app/entry')
       return
@@ -127,8 +132,8 @@ export default function Login() {
 
             {error ? <p className="form-error">{error}</p> : null}
 
-            <button type="submit" className="login-btn">
-              LOGIN <ArrowRight size={18} />
+            <button type="submit" className="login-btn" disabled={busy}>
+              {busy ? 'SIGNING IN…' : 'LOGIN'} <ArrowRight size={18} />
             </button>
           </form>
 

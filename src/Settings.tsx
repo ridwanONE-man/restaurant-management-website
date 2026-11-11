@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Database,
@@ -55,14 +55,22 @@ export default function SettingsPage() {
     window.setTimeout(() => setProfileMsg(''), 2000)
   }
 
-  function onChangePassword() {
+  // keep the form in step when settings change on another device
+  useEffect(() => {
+    setKitchenName(settings.kitchenName)
+    setManagerName(settings.managerName)
+    setRole(settings.role)
+    setShiftLabel(settings.shiftLabel)
+  }, [settings.kitchenName, settings.managerName, settings.role, settings.shiftLabel])
+
+  async function onChangePassword() {
     setPasswordError('')
     setPasswordMsg('')
     if (newPassword !== confirmPassword) {
       setPasswordError('New password and confirmation do not match.')
       return
     }
-    const result = changePassword(currentPassword, newPassword)
+    const result = await changePassword(currentPassword, newPassword)
     if (!result.ok) {
       setPasswordError(result.error)
       return
@@ -126,8 +134,8 @@ export default function SettingsPage() {
     setActionMsg('History JSON downloaded.')
   }
 
-  function onLogout() {
-    logout()
+  async function onLogout() {
+    await logout()
     navigate('/')
   }
 

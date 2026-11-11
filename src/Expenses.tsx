@@ -27,6 +27,22 @@ function sanitizeDecimalInput(raw: string) {
   return cleaned
 }
 
+type CostKey = 'chicken' | 'wholesaler' | 'grocerySpices' | 'other'
+
+function costTextFrom(e: Record<CostKey, number>) {
+  return {
+    chicken: e.chicken ? String(e.chicken) : '',
+    wholesaler: e.wholesaler ? String(e.wholesaler) : '',
+    grocerySpices: e.grocerySpices ? String(e.grocerySpices) : '',
+    other: e.other ? String(e.other) : '',
+  }
+}
+
+/** Fingerprint of what auto-save would write — skips saves for changes that came from another device */
+function autoSaveSig(draft: unknown, expenses: unknown) {
+  return JSON.stringify({ draft, expenses })
+}
+
 const COST_FIELDS = [
   { key: 'chicken' as const, label: 'CHICKEN' },
   { key: 'wholesaler' as const, label: 'WHOLESALER' },
@@ -40,6 +56,7 @@ export default function Expenses() {
     nightMoney,
     nightDraft,
     nightSession,
+    draftRevision,
     lastAutoSavedAt,
     markAutoSaved,
     beginFreshNight,
@@ -55,13 +72,8 @@ export default function Expenses() {
     buildHistoryEntry,
   } = useLedger()
 
-  const skipFirstAutoSave = useRef(true)
-  const [costText, setCostText] = useState(() => ({
-    chicken: expenses.chicken ? String(expenses.chicken) : '',
-    wholesaler: expenses.wholesaler ? String(expenses.wholesaler) : '',
-    grocerySpices: expenses.grocerySpices ? String(expenses.grocerySpices) : '',
-    other: expenses.other ? String(expenses.other) : '',
-  }))
+  const lastAutoSig = useRef(autoSaveSig(nightDraft, expenses))
+  const [costText, setCostText] = useState(() => costTextFrom(expenses))
   const [newStaffName, setNewStaffName] = useState('')
   const [newStaffSalary, setNewStaffSalary] = useState('')
   const [staffError, setStaffError] = useState('')
@@ -81,15 +93,22 @@ export default function Expenses() {
     setNewStaffSalary('')
     setStaffError('')
     setActionError('')
-    skipFirstAutoSave.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nightSession])
+
+  /** Another device changed tonight's sheet — show its numbers */
+  useEffect(() => {
+    if (draftRevision === 0) return
+    setCostText(costTextFrom(expenses))
+    lastAutoSig.current = autoSaveSig(nightDraft, expenses)
+    // only react to remote revisions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftRevision])
 
   /** Auto-save to History when expenses (or night sales) change */
   useEffect(() => {
-    if (skipFirstAutoSave.current) {
-      skipFirstAutoSave.current = false
-      return
-    }
+    const sig = autoSaveSig(nightDraft, expenses)
+    if (sig === lastAutoSig.current) return
     const hasSales = Boolean(
       nightDraft && (nightDraft.covers > 0 || nightDraft.loans.length > 0 || nightDraft.totalSales > 0),
     )
@@ -100,6 +119,7 @@ export default function Expenses() {
       const entry = buildHistoryEntry()
       if (!entry) return
       saveNight(entry)
+      lastAutoSig.current = sig
       markAutoSaved()
       setAutoSavedFlash(true)
       setActionMsg('Auto-saved to History — New Entry stays in sync.')

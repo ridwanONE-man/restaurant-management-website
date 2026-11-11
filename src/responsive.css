@@ -1,0 +1,386 @@
+/* =============================================================================
+   Responsive layer — loaded after every page stylesheet.
+   Breakpoints:  ≥1100 laptop/desktop · 768–1099 tablet · <768 phone · <380 small phone
+   ============================================================================= */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+/* Long words / numbers never push the page sideways */
+.page,
+.panel,
+.item-card,
+.price-card,
+.menu-card,
+.kpi-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Bar chart scrolls by itself when there are many nights */
+.bar-chart__plot {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* Boot / auth check screen */
+.boot-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.boot-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #2a2a2a;
+  border-top-color: var(--green);
+  animation: boot-spin 0.8s linear infinite;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Bigger tap targets on touch screens */
+@media (pointer: coarse) {
+  .counter {
+    grid-template-columns: 46px 1fr 46px;
+  }
+
+  .counter-btn,
+  .loan-adjust,
+  .loan-remove,
+  .staff-remove,
+  .more-btn,
+  .pager button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Tablet & small laptop
+--------------------------------------------------------------------------- */
+@media (max-width: 1100px) and (min-width: 600px) {
+  .kpi-grid,
+  .borrower-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menu-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .summary-panel--wide {
+    max-width: none;
+  }
+
+  .composer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .composer-grid > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Phone
+--------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  /* iOS zooms into inputs smaller than 16px */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .panel {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    width: 100%;
+  }
+
+  .head-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* New Entry */
+  .item-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .menu-section__head h2 {
+    font-size: 1.1rem;
+  }
+
+  .loan-sold-row__head {
+    flex-wrap: wrap;
+  }
+
+  .loan-qty-counter {
+    min-width: 0;
+  }
+
+  .loan-add-btn {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .summary-slsh-main {
+    font-size: clamp(1.6rem, 8vw, 2.2rem);
+    overflow-wrap: anywhere;
+  }
+
+  /* Expenses */
+  .expense-actions > button {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+
+  .net-hero strong {
+    font-size: clamp(1.6rem, 8vw, 2.4rem);
+    overflow-wrap: anywhere;
+  }
+
+  /* History — the wide table becomes stacked cards */
+  .history-toolbar h1 {
+    font-size: 1.45rem;
+  }
+
+  .history-actions {
+    width: 100%;
+  }
+
+  .search {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .date-range__custom {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-value {
+    font-size: 1.6rem;
+  }
+
+  .table-card {
+    background: transparent;
+    border: 0;
+  }
+
+  .history-table {
+    min-width: 0;
+  }
+
+  .history-table thead {
+    display: none;
+  }
+
+  .history-table,
+  .history-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .history-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem 0.9rem;
+    padding: 0.95rem 1rem;
+    margin-bottom: 0.75rem;
+    background: #161616;
+    border: 1px solid #262626;
+    border-radius: 14px;
+  }
+
+  .history-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .history-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .history-table td[data-label='Date'],
+  .history-table td[data-label='Loan names'],
+  .history-table td[data-label='Actions'],
+  .history-table .history-empty-cell {
+    grid-column: 1 / -1;
+  }
+
+  .history-table td[data-label='Actions']::before {
+    display: none;
+  }
+
+  .history-table td[data-label='Date'] {
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #242424;
+  }
+
+  .history-table .row-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .history-table .row-actions .more-btn {
+    flex: 1;
+  }
+
+  .history-table .loan-names {
+    max-width: none;
+  }
+
+  .table-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    padding: 0.5rem 0 0;
+  }
+
+  .pager {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* History detail modal → bottom sheet */
+  .history-modal-backdrop {
+    padding: 0;
+    place-items: end stretch;
+  }
+
+  .history-modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+    padding: 1.1rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  /* Menu Studio */
+  .menu-board,
+  .composer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-actions {
+    flex-wrap: wrap;
+  }
+
+  .composer-actions > * {
+    flex: 1 1 auto;
+  }
+
+  /* Night Prices — keep the save bar above the bottom tabs */
+  .prices-sticky {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .price-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Analytics */
+  .pie-svg {
+    width: min(220px, 70vw);
+    height: auto;
+  }
+
+  .borrower-grid,
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Login */
+  .login-hero {
+    min-height: auto;
+    padding: calc(1.25rem + env(safe-area-inset-top)) 1.25rem 1.5rem;
+  }
+
+  .login-hero__copy h1 {
+    font-size: 1.65rem;
+  }
+
+  .login-panel {
+    padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Small phones (iPhone SE, Galaxy A0x …)
+--------------------------------------------------------------------------- */
+@media (max-width: 379px) {
+  .page {
+    padding: 0.85rem 0.75rem 1.25rem;
+  }
+
+  .item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-table tr {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-nav__item span {
+    font-size: 0.62rem;
+  }
+
+  .icon-picker__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Phones in landscape: shorter chrome */
+@media (max-height: 480px) and (orientation: landscape) and (max-width: 1000px) {
+  .login-hero {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner {
+    animation-duration: 2s;
+  }
+}

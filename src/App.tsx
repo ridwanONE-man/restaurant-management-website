@@ -15,7 +15,15 @@ import Settings from './Settings'
 import type { ReactNode } from 'react'
 
 function Protected({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { ready, isAuthenticated } = useAuth()
+  if (!ready) {
+    return (
+      <div className="boot-screen" role="status">
+        <span className="boot-spinner" aria-hidden />
+        Loading kitchen…
+      </div>
+    )
+  }
   if (!isAuthenticated) return <Navigate to="/" replace />
   return children
 }

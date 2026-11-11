@@ -102,8 +102,6 @@ export const MENU_SECTIONS: { key: MenuCategory; title: string; hint: string }[]
   { key: 'juice', title: 'Fresh Juices', hint: 'Cold pressed blends' },
 ]
 
-export const DEFAULT_EMAIL = 'dozka@gmail.com'
-export const DEFAULT_PASSWORD = '12121212'
 
 export function formatSlshAmount(slsh: number, opts?: { signed?: boolean }) {
   const abs = Math.abs(slsh).toLocaleString('en-US', {

@@ -1,47 +1,40 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * Browser-safe Supabase client (URL + anon key from `.env`).
- * Fill `.env` then restart the dev server.
+ * Browser-safe Supabase client.
  *
- * Service role key stays in `.env` as SUPABASE_SERVICE_ROLE_KEY
- * and must never be imported into the React app.
+ * Reads VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY from `.env` (or Vercel env vars).
+ * Falls back to the dozkaproject URL + publishable key, which are public by design —
+ * Row Level Security is what protects the data.
+ *
+ * The service role key must NEVER be imported into the React app.
  */
 
-const url = (import.meta.env.VITE_SUPABASE_URL ?? '').trim()
-const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim()
+const FALLBACK_URL = 'https://twtlooguletamwqmmyoy.supabase.co'
+const FALLBACK_KEY = 'sb_publishable_R28kT5RlET9gpfnDX9RhcQ_MnUuBPxV'
+
+const url = ((import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? '').trim() || FALLBACK_URL
+const anonKey =
+  ((import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '').trim() || FALLBACK_KEY
 
 export const isSupabaseConfigured = Boolean(url && anonKey)
 
-let client: SupabaseClient | null = null
+export const supabase: SupabaseClient = createClient(url, anonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  realtime: {
+    params: { eventsPerSecond: 20 },
+  },
+})
 
 export function getSupabase(): SupabaseClient {
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file, then restart npm run dev.',
-    )
-  }
-  if (!client) {
-    client = createClient(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    })
-  }
-  return client
+  return supabase
 }
 
-/** Optional helper — returns null when keys are still empty */
-export function tryGetSupabase(): SupabaseClient | null {
-  if (!isSupabaseConfigured) return null
-  return getSupabase()
-}
+/** Unique id for this browser tab — lets a device ignore realtime echoes of its own writes */
+export const CLIENT_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 
-export const supabaseConfig = {
-  url,
-  hasAnonKey: Boolean(anonKey),
-  /** Service role is never available in the browser build */
-  serviceRoleNote:
-    'SUPABASE_SERVICE_ROLE_KEY is for admin/server use only (Edge Functions, scripts). Keep it out of VITE_ variables.',
-}
+export const supabaseConfig = { url }

@@ -3,9 +3,14 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { supabase } from './lib/supabase'
+import { useRealtimeRefetch } from './lib/realtime'
+import { reportSyncError } from './lib/syncStatus'
+import { useAuth } from './auth'
 
 export type AppSettings = {
   kitchenName: string
@@ -31,7 +36,40 @@ const DEFAULT_SETTINGS: AppSettings = {
   confirmBeforeClear: true,
 }
 
+/** Local cache only — the source of truth is public.kitchen_settings */
 const SETTINGS_KEY = 'grillgrain-app-settings-v1'
+
+type SettingsRow = {
+  id: string
+  kitchen_name: string
+  manager_name: string
+  role_label: string
+  shift_label: string
+  compact_tables: boolean
+  confirm_before_clear: boolean
+}
+
+function rowToSettings(row: SettingsRow): AppSettings {
+  return {
+    kitchenName: row.kitchen_name,
+    managerName: row.manager_name,
+    role: row.role_label,
+    shiftLabel: row.shift_label,
+    compactTables: row.compact_tables,
+    confirmBeforeClear: row.confirm_before_clear,
+  }
+}
+
+function settingsToRow(s: Partial<AppSettings>) {
+  const row: Partial<Omit<SettingsRow, 'id'>> = {}
+  if (s.kitchenName !== undefined) row.kitchen_name = s.kitchenName
+  if (s.managerName !== undefined) row.manager_name = s.managerName
+  if (s.role !== undefined) row.role_label = s.role
+  if (s.shiftLabel !== undefined) row.shift_label = s.shiftLabel
+  if (s.compactTables !== undefined) row.compact_tables = s.compactTables
+  if (s.confirmBeforeClear !== undefined) row.confirm_before_clear = s.confirmBeforeClear
+  return row
+}
 
 function loadSettings(): AppSettings {
   try {
@@ -43,23 +81,66 @@ function loadSettings(): AppSettings {
   }
 }
 
+function cache(next: AppSettings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
+  } catch {
+    /* optional */
+  }
+}
+
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
   const [settings, setSettings] = useState<AppSettings>(loadSettings)
+  const rowId = useRef<string | null>(null)
 
-  const updateSettings = useCallback((patch: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch }
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
-      return next
-    })
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('kitchen_settings')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      reportSyncError(error)
+      return
+    }
+    if (!data) return
+    rowId.current = (data as SettingsRow).id
+    const next = rowToSettings(data as SettingsRow)
+    setSettings((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+    cache(next)
   }, [])
+
+  useRealtimeRefetch('settings', ['kitchen_settings'], isAuthenticated, () => void refetch())
+
+  const write = useCallback(async (patch: Partial<AppSettings>) => {
+    const row = settingsToRow(patch)
+    const res = rowId.current
+      ? await supabase.from('kitchen_settings').update(row).eq('id', rowId.current)
+      : await supabase.from('kitchen_settings').insert(row)
+    if (res.error) reportSyncError(res.error)
+  }, [])
+
+  const updateSettings = useCallback(
+    (patch: Partial<AppSettings>) => {
+      setSettings((prev) => {
+        const next = { ...prev, ...patch }
+        cache(next)
+        return next
+      })
+      void write(patch)
+    },
+    [write],
+  )
 
   const resetSettings = useCallback(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SETTINGS))
+    cache(DEFAULT_SETTINGS)
     setSettings({ ...DEFAULT_SETTINGS })
-  }, [])
+    void write(DEFAULT_SETTINGS)
+  }, [write])
 
   const value = useMemo(
     () => ({ settings, updateSettings, resetSettings }),

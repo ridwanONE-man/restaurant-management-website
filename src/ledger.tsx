@@ -2,11 +2,17 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { LoanRecord, NightEntry } from './data'
+import { supabase, CLIENT_ID } from './lib/supabase'
+import { useRealtimeRefetch } from './lib/realtime'
+import { reportSyncError } from './lib/syncStatus'
+import { useAuth } from './auth'
 
 export type NightMoney = {
   gross: number
@@ -30,7 +36,7 @@ export type ExpenseState = {
   other: number
 }
 
-/** Full night working copy shared between New Entry and Expenses */
+/** Full night working copy shared between New Entry and Expenses (and every device) */
 export type NightDraft = {
   id: string
   date: string
@@ -50,8 +56,10 @@ type LedgerContextValue = {
   nightDraft: NightDraft | null
   setNightDraft: (draft: NightDraft | null) => void
   clearNightDraft: () => void
-  /** Increments when both pages are refreshed for a new night */
+  /** Increments when this device starts a fresh night */
   nightSession: number
+  /** Increments whenever the working night was replaced by data from the server / another device */
+  draftRevision: number
   lastAutoSavedAt: string | null
   markAutoSaved: () => void
   /** Clear sales draft + expenses and refresh New Entry / Expenses */
@@ -78,14 +86,15 @@ const EMPTY_NIGHT: NightMoney = {
   loanCovers: 0,
 }
 
-const EMPTY_EXPENSES: ExpenseState = {
+const emptyExpenses = (): ExpenseState => ({
   staff: [],
   chicken: 0,
   wholesaler: 0,
   grocerySpices: 0,
   other: 0,
-}
+})
 
+/** Local cache keys (the source of truth is public.night_drafts, id = 'current') */
 const EXPENSE_KEY = 'grillgrain-expenses-v2'
 const DRAFT_KEY = 'grillgrain-night-draft-v1'
 
@@ -94,48 +103,213 @@ function timeNowLabel() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
-function loadExpenses(): ExpenseState {
-  try {
-    const raw = localStorage.getItem(EXPENSE_KEY)
-    if (!raw) return { ...EMPTY_EXPENSES, staff: [] }
-    const parsed = JSON.parse(raw) as Partial<ExpenseState>
-    return {
-      ...EMPTY_EXPENSES,
-      ...parsed,
-      staff: Array.isArray(parsed.staff) ? parsed.staff : [],
-    }
-  } catch {
-    return { ...EMPTY_EXPENSES, staff: [] }
+function normalizeExpenses(raw: unknown): ExpenseState {
+  const parsed = (raw && typeof raw === 'object' ? raw : {}) as Partial<ExpenseState>
+  const num = (v: unknown) => Math.max(0, Number(v) || 0)
+  return {
+    staff: Array.isArray(parsed.staff)
+      ? parsed.staff.map((s) => ({ id: String(s.id), name: String(s.name ?? ''), salary: num(s.salary) }))
+      : [],
+    chicken: num(parsed.chicken),
+    wholesaler: num(parsed.wholesaler),
+    grocerySpices: num(parsed.grocerySpices),
+    other: num(parsed.other),
   }
 }
 
-function loadDraft(): NightDraft | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as NightDraft
-  } catch {
-    return null
+function normalizeDraft(raw: unknown): NightDraft | null {
+  if (!raw || typeof raw !== 'object') return null
+  const d = raw as Partial<NightDraft>
+  if (!d.id) return null
+  return {
+    id: String(d.id),
+    date: String(d.date ?? ''),
+    dayLabel: String(d.dayLabel ?? ''),
+    totalSales: Number(d.totalSales) || 0,
+    loanAmount: Number(d.loanAmount) || 0,
+    cashSales: Number(d.cashSales) || 0,
+    covers: Number(d.covers) || 0,
+    loanCovers: Number(d.loanCovers) || 0,
+    loans: Array.isArray(d.loans) ? d.loans : [],
+    itemSales: Array.isArray(d.itemSales) ? d.itemSales : [],
   }
 }
 
-function persistExpenses(next: ExpenseState) {
-  localStorage.setItem(EXPENSE_KEY, JSON.stringify(next))
+function hasContent(d: NightDraft | null) {
+  return Boolean(d && (d.covers > 0 || d.loans.length > 0 || d.totalSales > 0))
 }
 
-function persistDraft(draft: NightDraft | null) {
-  if (!draft) localStorage.removeItem(DRAFT_KEY)
-  else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+/** Comparable fingerprint of the working night (ignores labels and empty drafts) */
+function signature(draft: NightDraft | null, expenses: ExpenseState) {
+  const d = hasContent(draft) ? draft! : null
+  return JSON.stringify({
+    d: d && {
+      id: d.id,
+      t: d.totalSales,
+      l: d.loanAmount,
+      c: d.cashSales,
+      cv: d.covers,
+      lc: d.loanCovers,
+      loans: d.loans,
+      items: d.itemSales,
+    },
+    e: expenses,
+  })
+}
+
+function readCache<T>(key: string, parse: (v: unknown) => T, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? parse(JSON.parse(raw)) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writeCache(key: string, value: unknown) {
+  try {
+    if (value == null) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    /* optional */
+  }
+}
+
+function moneyFrom(draft: NightDraft | null): NightMoney {
+  if (!draft) return EMPTY_NIGHT
+  return {
+    gross: draft.totalSales,
+    cash: draft.cashSales,
+    loan: draft.loanAmount,
+    covers: draft.covers,
+    loanCovers: draft.loanCovers,
+  }
+}
+
+type DraftRow = {
+  draft: unknown
+  expenses: unknown
+  client_id: string | null
 }
 
 const LedgerContext = createContext<LedgerContextValue | null>(null)
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
-  const [nightMoney, setNightMoneyState] = useState<NightMoney>(EMPTY_NIGHT)
-  const [nightDraft, setNightDraftState] = useState<NightDraft | null>(loadDraft)
-  const [expenses, setExpensesState] = useState<ExpenseState>(loadExpenses)
+  const { isAuthenticated } = useAuth()
+  const [nightDraft, setNightDraftState] = useState<NightDraft | null>(() =>
+    readCache(DRAFT_KEY, normalizeDraft, null),
+  )
+  const [expenses, setExpensesState] = useState<ExpenseState>(() =>
+    readCache(EXPENSE_KEY, normalizeExpenses, emptyExpenses()),
+  )
+  const [nightMoney, setNightMoneyState] = useState<NightMoney>(() => moneyFrom(nightDraft))
   const [nightSession, setNightSession] = useState(0)
+  const [draftRevision, setDraftRevision] = useState(0)
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null)
+
+  const draftRef = useRef(nightDraft)
+  const expensesRef = useRef(expenses)
+  /** Writes are held back until the server copy has been loaded once */
+  const loadedRef = useRef(false)
+  const lastSigRef = useRef<string | null>(null)
+  const writeTimer = useRef<number | undefined>(undefined)
+
+  const flushWrite = useCallback(async () => {
+    const sig = signature(draftRef.current, expensesRef.current)
+    if (sig === lastSigRef.current) return
+    lastSigRef.current = sig
+    const { error } = await supabase.from('night_drafts').upsert({
+      id: 'current',
+      draft: hasContent(draftRef.current) ? draftRef.current : {},
+      expenses: expensesRef.current,
+      client_id: CLIENT_ID,
+      updated_at: new Date().toISOString(),
+    })
+    if (error) {
+      lastSigRef.current = null
+      reportSyncError(error)
+    }
+  }, [])
+
+  const scheduleWrite = useCallback(() => {
+    if (!loadedRef.current) return
+    window.clearTimeout(writeTimer.current)
+    writeTimer.current = window.setTimeout(() => void flushWrite(), 250)
+  }, [flushWrite])
+
+  // flush a pending write if the tab is being hidden/closed
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden' && loadedRef.current) {
+        window.clearTimeout(writeTimer.current)
+        void flushWrite()
+      }
+    }
+    document.addEventListener('visibilitychange', flush)
+    return () => document.removeEventListener('visibilitychange', flush)
+  }, [flushWrite])
+
+  const commitDraft = useCallback((draft: NightDraft | null) => {
+    draftRef.current = draft
+    writeCache(DRAFT_KEY, draft)
+    setNightDraftState(draft)
+    setNightMoneyState(moneyFrom(draft))
+  }, [])
+
+  const commitExpenses = useCallback((next: ExpenseState) => {
+    expensesRef.current = next
+    writeCache(EXPENSE_KEY, next)
+    setExpensesState(next)
+  }, [])
+
+  /** Apply the shared row coming from the server or another device */
+  const applyRemote = useCallback(
+    (row: DraftRow) => {
+      const firstLoad = !loadedRef.current
+      loadedRef.current = true
+      // our own echo — local state is already newer or equal
+      if (!firstLoad && row.client_id === CLIENT_ID) return
+      const draft = normalizeDraft(row.draft)
+      const exp = normalizeExpenses(row.expenses)
+      const remoteSig = signature(draft, exp)
+      lastSigRef.current = remoteSig
+      if (remoteSig === signature(draftRef.current, expensesRef.current)) return
+      window.clearTimeout(writeTimer.current)
+      commitDraft(hasContent(draft) ? draft : null)
+      commitExpenses(exp)
+      setDraftRevision((n) => n + 1)
+    },
+    [commitDraft, commitExpenses],
+  )
+
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('night_drafts')
+      .select('draft, expenses, client_id')
+      .eq('id', 'current')
+      .maybeSingle()
+    if (error) {
+      reportSyncError(error)
+      return
+    }
+    if (data) applyRemote(data as DraftRow)
+    else {
+      loadedRef.current = true
+      scheduleWrite()
+    }
+  }, [applyRemote, scheduleWrite])
+
+  useRealtimeRefetch('ledger', ['night_drafts'], isAuthenticated, () => void refetch(), (_table, payload) => {
+    if (payload.new && 'draft' in payload.new) {
+      applyRemote(payload.new as unknown as DraftRow)
+      return true
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (!isAuthenticated) loadedRef.current = false
+  }, [isAuthenticated])
 
   const staffTotal = expenses.staff.reduce((sum, s) => sum + (Number(s.salary) || 0), 0)
   const operationalTotal =
@@ -148,64 +322,54 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     setNightMoneyState(money)
   }, [])
 
-  const setNightDraft = useCallback((draft: NightDraft | null) => {
-    persistDraft(draft)
-    setNightDraftState(draft)
-    if (draft) {
-      setNightMoneyState({
-        gross: draft.totalSales,
-        cash: draft.cashSales,
-        loan: draft.loanAmount,
-        covers: draft.covers,
-        loanCovers: draft.loanCovers,
-      })
-    }
-  }, [])
+  const setNightDraft = useCallback(
+    (draft: NightDraft | null) => {
+      commitDraft(draft)
+      scheduleWrite()
+    },
+    [commitDraft, scheduleWrite],
+  )
 
   const clearNightDraft = useCallback(() => {
-    persistDraft(null)
-    setNightDraftState(null)
-    setNightMoneyState(EMPTY_NIGHT)
-  }, [])
+    commitDraft(null)
+    scheduleWrite()
+  }, [commitDraft, scheduleWrite])
 
   const resetExpenses = useCallback(() => {
-    const empty = { ...EMPTY_EXPENSES, staff: [] }
-    persistExpenses(empty)
-    setExpensesState(empty)
-  }, [])
+    commitExpenses(emptyExpenses())
+    scheduleWrite()
+  }, [commitExpenses, scheduleWrite])
 
   const beginFreshNight = useCallback(() => {
-    persistDraft(null)
-    setNightDraftState(null)
-    setNightMoneyState(EMPTY_NIGHT)
-    const empty = { ...EMPTY_EXPENSES, staff: [] }
-    persistExpenses(empty)
-    setExpensesState(empty)
+    commitDraft(null)
+    commitExpenses(emptyExpenses())
     setLastAutoSavedAt(null)
     setNightSession((n) => n + 1)
-  }, [])
+    scheduleWrite()
+  }, [commitDraft, commitExpenses, scheduleWrite])
 
   const markAutoSaved = useCallback(() => {
     setLastAutoSavedAt(timeNowLabel())
   }, [])
 
-  const setExpenseField = useCallback(
-    (key: 'chicken' | 'wholesaler' | 'grocerySpices' | 'other', value: number) => {
-      setExpensesState((prev) => {
-        const next = {
-          ...prev,
-          [key]: Math.max(0, Number.isFinite(value) ? value : 0),
-        }
-        persistExpenses(next)
-        return next
-      })
+  const updateExpenses = useCallback(
+    (fn: (prev: ExpenseState) => ExpenseState) => {
+      commitExpenses(fn(expensesRef.current))
+      scheduleWrite()
     },
-    [],
+    [commitExpenses, scheduleWrite],
   )
 
-  const addStaff = useCallback((name: string, salary: number) => {
-    setExpensesState((prev) => {
-      const next = {
+  const setExpenseField = useCallback(
+    (key: 'chicken' | 'wholesaler' | 'grocerySpices' | 'other', value: number) => {
+      updateExpenses((prev) => ({ ...prev, [key]: Math.max(0, Number.isFinite(value) ? value : 0) }))
+    },
+    [updateExpenses],
+  )
+
+  const addStaff = useCallback(
+    (name: string, salary: number) => {
+      updateExpenses((prev) => ({
         ...prev,
         staff: [
           ...prev.staff,
@@ -215,48 +379,42 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
             salary: Math.max(0, Number.isFinite(salary) ? salary : 0),
           },
         ],
-      }
-      persistExpenses(next)
-      return next
-    })
-  }, [])
+      }))
+    },
+    [updateExpenses],
+  )
 
   const updateStaff = useCallback(
     (id: string, patch: Partial<Pick<StaffSalary, 'name' | 'salary'>>) => {
-      setExpensesState((prev) => {
-        const next = {
-          ...prev,
-          staff: prev.staff.map((s) =>
-            s.id === id
-              ? {
-                  ...s,
-                  name: patch.name !== undefined ? patch.name : s.name,
-                  salary:
-                    patch.salary !== undefined
-                      ? Math.max(0, Number.isFinite(patch.salary) ? patch.salary : 0)
-                      : s.salary,
-                }
-              : s,
-          ),
-        }
-        persistExpenses(next)
-        return next
-      })
+      updateExpenses((prev) => ({
+        ...prev,
+        staff: prev.staff.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                name: patch.name !== undefined ? patch.name : s.name,
+                salary:
+                  patch.salary !== undefined
+                    ? Math.max(0, Number.isFinite(patch.salary) ? patch.salary : 0)
+                    : s.salary,
+              }
+            : s,
+        ),
+      }))
     },
-    [],
+    [updateExpenses],
   )
 
-  const removeStaff = useCallback((id: string) => {
-    setExpensesState((prev) => {
-      const next = { ...prev, staff: prev.staff.filter((s) => s.id !== id) }
-      persistExpenses(next)
-      return next
-    })
-  }, [])
+  const removeStaff = useCallback(
+    (id: string) => {
+      updateExpenses((prev) => ({ ...prev, staff: prev.staff.filter((s) => s.id !== id) }))
+    },
+    [updateExpenses],
+  )
 
   const buildHistoryEntry = useCallback((): NightEntry | null => {
     const draft = nightDraft
-    const hasSales = Boolean(draft && (draft.covers > 0 || draft.loans.length > 0 || draft.totalSales > 0))
+    const hasSales = hasContent(draft)
     const hasExpenses = operationalTotal > 0 || expenses.staff.length > 0
     if (!hasSales && !hasExpenses) return null
 
@@ -296,6 +454,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       setNightDraft,
       clearNightDraft,
       nightSession,
+      draftRevision,
       lastAutoSavedAt,
       markAutoSaved,
       beginFreshNight,
@@ -317,6 +476,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       beginFreshNight,
       buildHistoryEntry,
       clearNightDraft,
+      draftRevision,
       expenses,
       finalRemaining,
       lastAutoSavedAt,

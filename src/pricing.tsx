@@ -3,16 +3,20 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import {
-  DEFAULT_PRICES,
   MENU_ITEMS,
   type MenuCategory,
   type MenuIcon,
   type MenuItem,
 } from './data'
+import { supabase } from './lib/supabase'
+import { useRealtimeRefetch } from './lib/realtime'
+import { reportSyncError } from './lib/syncStatus'
+import { useAuth } from './auth'
 
 export type NewMenuItemInput = {
   name: string
@@ -36,8 +40,39 @@ type PricingContextValue = {
 
 const PricingContext = createContext<PricingContextValue | null>(null)
 
-const PRICES_KEY = 'grillgrain-night-prices-slsh-v1'
+/** Local cache only — the source of truth is public.menu_items */
 const MENU_KEY = 'grillgrain-menu-catalog-v1'
+
+type MenuRow = {
+  id: string
+  name: string
+  price: number | string
+  category: MenuCategory
+  icon: MenuIcon
+  sort_order: number
+}
+
+function rowToItem(row: MenuRow): MenuItem {
+  return {
+    id: row.id,
+    name: row.name,
+    price: Math.max(0, Number(row.price) || 0),
+    category: row.category,
+    icon: row.icon || 'star',
+  }
+}
+
+function itemToRow(item: MenuItem, sortOrder: number) {
+  return {
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    category: item.category,
+    icon: item.icon,
+    is_active: true,
+    sort_order: sortOrder,
+  }
+}
 
 function loadCatalog(): MenuItem[] {
   try {
@@ -45,42 +80,18 @@ function loadCatalog(): MenuItem[] {
     if (!raw) return MENU_ITEMS.map((item) => ({ ...item }))
     const parsed = JSON.parse(raw) as MenuItem[]
     if (!Array.isArray(parsed) || !parsed.length) return MENU_ITEMS.map((item) => ({ ...item }))
-    return parsed
-      .filter((item) => item && item.id && item.name)
-      .map((item) => ({
-        id: String(item.id),
-        name: String(item.name),
-        price: Math.max(0, Number(item.price) || 0),
-        category: (item.category as MenuCategory) || 'grill',
-        icon: (item.icon as MenuIcon) || 'star',
-      }))
+    return parsed.filter((item) => item && item.id && item.name)
   } catch {
     return MENU_ITEMS.map((item) => ({ ...item }))
   }
 }
 
-function loadPrices(catalog: MenuItem[]): Record<string, number> {
-  const base = Object.fromEntries(catalog.map((item) => [item.id, item.price]))
+function cache(catalog: MenuItem[]) {
   try {
-    const raw = localStorage.getItem(PRICES_KEY)
-    if (!raw) return { ...base }
-    const parsed = JSON.parse(raw) as Record<string, number>
-    const next = { ...base }
-    for (const [id, value] of Object.entries(parsed)) {
-      if (id in next) next[id] = Math.max(0, Number(value) || 0)
-    }
-    return next
+    localStorage.setItem(MENU_KEY, JSON.stringify(catalog))
   } catch {
-    return { ...base }
+    /* optional */
   }
-}
-
-function persistCatalog(catalog: MenuItem[]) {
-  localStorage.setItem(MENU_KEY, JSON.stringify(catalog))
-}
-
-function persistPrices(prices: Record<string, number>) {
-  localStorage.setItem(PRICES_KEY, JSON.stringify(prices))
 }
 
 function slugify(name: string) {
@@ -92,139 +103,150 @@ function slugify(name: string) {
     .slice(0, 40)
 }
 
-export function PricingProvider({ children }: { children: ReactNode }) {
-  const [catalog, setCatalog] = useState<MenuItem[]>(loadCatalog)
-  const [prices, setPrices] = useState<Record<string, number>>(() => loadPrices(loadCatalog()))
+const cleanPrice = (v: number) => Math.max(0, Number.isFinite(v) ? v : 0)
 
-  const menu = useMemo(
-    () =>
-      catalog.map((item) => ({
-        ...item,
-        price: prices[item.id] ?? item.price,
-      })),
-    [catalog, prices],
+export function PricingProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
+  const [catalog, setCatalogState] = useState<MenuItem[]>(loadCatalog)
+  const catalogRef = useRef(catalog)
+
+  const setCatalog = useCallback((next: MenuItem[]) => {
+    // keep the same array identity when nothing changed, so open forms aren't reset
+    if (JSON.stringify(next) === JSON.stringify(catalogRef.current)) return
+    catalogRef.current = next
+    cache(next)
+    setCatalogState(next)
+  }, [])
+
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('id, name, price, category, icon, sort_order')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+    if (error) {
+      reportSyncError(error)
+      return
+    }
+    setCatalog((data as MenuRow[]).map(rowToItem))
+  }, [setCatalog])
+
+  useRealtimeRefetch('menu', ['menu_items'], isAuthenticated, () => void refetch())
+
+  const run = useCallback(
+    async (task: PromiseLike<{ error: unknown }>) => {
+      const { error } = await task
+      if (error) {
+        reportSyncError(error)
+        void refetch()
+      }
+    },
+    [refetch],
   )
 
-  const setItemPrice = useCallback((id: string, slsh: number) => {
-    const clean = Math.max(0, Number.isFinite(slsh) ? slsh : 0)
-    setPrices((prev) => {
-      const next = { ...prev, [id]: clean }
-      persistPrices(next)
-      return next
-    })
-    setCatalog((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, price: clean } : item))
-      persistCatalog(next)
-      return next
-    })
-  }, [])
+  const prices = useMemo(
+    () => Object.fromEntries(catalog.map((item) => [item.id, item.price])) as Record<string, number>,
+    [catalog],
+  )
 
-  const applyNightPricing = useCallback(({ prices: nextPrices }: { prices: Record<string, number> }) => {
-    setPrices((prev) => {
-      const next = { ...prev }
-      for (const [id, value] of Object.entries(nextPrices)) {
-        if (id in next) next[id] = Math.max(0, Number(value) || 0)
-      }
-      persistPrices(next)
-      return next
-    })
-    setCatalog((prev) => {
-      const next = prev.map((item) => ({
-        ...item,
-        price: nextPrices[item.id] !== undefined ? Math.max(0, Number(nextPrices[item.id]) || 0) : item.price,
-      }))
-      persistCatalog(next)
-      return next
-    })
-  }, [])
+  const setItemPrice = useCallback(
+    (id: string, slsh: number) => {
+      const clean = cleanPrice(slsh)
+      setCatalog(catalogRef.current.map((item) => (item.id === id ? { ...item, price: clean } : item)))
+      void run(supabase.from('menu_items').update({ price: clean }).eq('id', id))
+    },
+    [run, setCatalog],
+  )
 
-  const addMenuItem = useCallback((input: NewMenuItemInput) => {
-    const base = slugify(input.name) || 'item'
-    let nextId = base
-    setCatalog((prev) => {
+  const applyNightPricing = useCallback(
+    ({ prices: nextPrices }: { prices: Record<string, number> }) => {
+      const next = catalogRef.current.map((item) =>
+        nextPrices[item.id] !== undefined ? { ...item, price: cleanPrice(Number(nextPrices[item.id])) } : item,
+      )
+      setCatalog(next)
+      void run(supabase.from('menu_items').upsert(next.map((item, i) => itemToRow(item, i + 1))))
+    },
+    [run, setCatalog],
+  )
+
+  const addMenuItem = useCallback(
+    (input: NewMenuItemInput) => {
+      const current = catalogRef.current
+      const base = slugify(input.name) || 'item'
+      let id = base
       let n = 1
-      while (prev.some((item) => item.id === nextId)) {
-        nextId = `${base}-${n}`
+      while (current.some((item) => item.id === id)) {
+        id = `${base}-${n}`
         n += 1
       }
       const item: MenuItem = {
-        id: nextId,
+        id,
         name: input.name.trim(),
-        price: Math.max(0, Number.isFinite(input.price) ? input.price : 0),
+        price: cleanPrice(input.price),
         category: input.category,
         icon: input.icon,
       }
-      const next = [...prev, item]
-      persistCatalog(next)
-      setPrices((pricePrev) => {
-        const priceNext = { ...pricePrev, [item.id]: item.price }
-        persistPrices(priceNext)
-        return priceNext
-      })
-      return next
-    })
-    return {
-      id: nextId,
-      name: input.name.trim(),
-      price: Math.max(0, Number.isFinite(input.price) ? input.price : 0),
-      category: input.category,
-      icon: input.icon,
-    }
-  }, [])
+      setCatalog([...current, item])
+      void run(supabase.from('menu_items').insert(itemToRow(item, current.length + 1)))
+      return item
+    },
+    [run, setCatalog],
+  )
 
-  const updateMenuItem = useCallback((id: string, patch: Partial<Omit<MenuItem, 'id'>>) => {
-    setCatalog((prev) => {
-      const next = prev.map((item) => {
-        if (item.id !== id) return item
-        return {
-          ...item,
-          name: patch.name !== undefined ? patch.name.trim() || item.name : item.name,
-          price:
-            patch.price !== undefined
-              ? Math.max(0, Number.isFinite(patch.price) ? patch.price : 0)
-              : item.price,
-          category: patch.category ?? item.category,
-          icon: patch.icon ?? item.icon,
-        }
-      })
-      persistCatalog(next)
-      if (patch.price !== undefined) {
-        const clean = Math.max(0, Number.isFinite(patch.price) ? patch.price : 0)
-        setPrices((pricePrev) => {
-          const priceNext = { ...pricePrev, [id]: clean }
-          persistPrices(priceNext)
-          return priceNext
-        })
-      }
-      return next
-    })
-  }, [])
+  const updateMenuItem = useCallback(
+    (id: string, patch: Partial<Omit<MenuItem, 'id'>>) => {
+      let updated: MenuItem | null = null
+      setCatalog(
+        catalogRef.current.map((item) => {
+          if (item.id !== id) return item
+          updated = {
+            ...item,
+            name: patch.name !== undefined ? patch.name.trim() || item.name : item.name,
+            price: patch.price !== undefined ? cleanPrice(patch.price) : item.price,
+            category: patch.category ?? item.category,
+            icon: patch.icon ?? item.icon,
+          }
+          return updated
+        }),
+      )
+      const u = updated as MenuItem | null
+      if (!u) return
+      void run(
+        supabase
+          .from('menu_items')
+          .update({ name: u.name, price: u.price, category: u.category, icon: u.icon })
+          .eq('id', id),
+      )
+    },
+    [run, setCatalog],
+  )
 
-  const removeMenuItem = useCallback((id: string) => {
-    setCatalog((prev) => {
-      const next = prev.filter((item) => item.id !== id)
-      persistCatalog(next)
-      return next
-    })
-    setPrices((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      persistPrices(next)
-      return next
-    })
-  }, [])
+  const removeMenuItem = useCallback(
+    (id: string) => {
+      setCatalog(catalogRef.current.filter((item) => item.id !== id))
+      void run(supabase.from('menu_items').delete().eq('id', id))
+    },
+    [run, setCatalog],
+  )
 
   const resetDefaults = useCallback(() => {
     const defaults = MENU_ITEMS.map((item) => ({ ...item }))
-    persistCatalog(defaults)
-    persistPrices({ ...DEFAULT_PRICES })
     setCatalog(defaults)
-    setPrices({ ...DEFAULT_PRICES })
-  }, [])
+    void (async () => {
+      const keep = defaults.map((item) => `"${item.id}"`).join(',')
+      const del = await supabase.from('menu_items').delete().not('id', 'in', `(${keep})`)
+      if (del.error) {
+        reportSyncError(del.error)
+        return
+      }
+      await run(supabase.from('menu_items').upsert(defaults.map((item, i) => itemToRow(item, i + 1))))
+    })()
+  }, [run, setCatalog])
 
   const value = useMemo<PricingContextValue>(
     () => ({
-      menu,
+      menu: catalog,
       catalog,
       prices,
       setItemPrice,
@@ -234,17 +256,7 @@ export function PricingProvider({ children }: { children: ReactNode }) {
       removeMenuItem,
       resetDefaults,
     }),
-    [
-      addMenuItem,
-      applyNightPricing,
-      catalog,
-      menu,
-      prices,
-      removeMenuItem,
-      resetDefaults,
-      setItemPrice,
-      updateMenuItem,
-    ],
+    [addMenuItem, applyNightPricing, catalog, prices, removeMenuItem, resetDefaults, setItemPrice, updateMenuItem],
   )
 
   return <PricingContext.Provider value={value}>{children}</PricingContext.Provider>

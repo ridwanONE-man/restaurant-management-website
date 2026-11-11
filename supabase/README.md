@@ -19,6 +19,14 @@ That creates:
 - `night_drafts`
 - RLS policies for authenticated users
 
+## 1b. Enable realtime sync (required)
+
+Run `supabase/migrations/20261111_realtime_sync.sql` the same way (SQL Editor → paste → Run).
+It turns on Supabase Realtime for `nights`, `menu_items`, `kitchen_settings` and
+`night_drafts`, adds the `save_night` function the app uses to save History, and fixes
+the security advisor warnings. After this, every change appears instantly on all
+signed-in phones, tablets and laptops.
+
 ## 2. Admin login
 
 Created by the same SQL:

@@ -32,6 +32,22 @@ function emptyCounts(menu: MenuItem[]) {
   return Object.fromEntries(menu.map((item) => [item.id, 0])) as Record<string, number>
 }
 
+function countsFromDraft(menu: MenuItem[], draft: { itemSales?: { itemId: string; qty: number }[] } | null) {
+  const base = emptyCounts(menu)
+  for (const row of draft?.itemSales ?? []) {
+    if (row.itemId in base) base[row.itemId] = row.qty
+  }
+  return base
+}
+
+/** Fingerprint of what auto-save would write — skips saves for changes that came from another device */
+function autoSaveSig(counts: Record<string, number>, loans: LoanRecord[], expenses: unknown) {
+  const sold = Object.entries(counts)
+    .filter(([, qty]) => qty > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+  return JSON.stringify({ sold, loans, expenses })
+}
+
 function timeNowLabel() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
@@ -44,6 +60,7 @@ export default function NewEntry() {
     setNightDraft,
     nightDraft,
     nightSession,
+    draftRevision,
     lastAutoSavedAt,
     markAutoSaved,
     beginFreshNight,
@@ -54,16 +71,9 @@ export default function NewEntry() {
     buildHistoryEntry,
   } = useLedger()
   const nightIdRef = useRef(nightDraft?.id ?? String(Date.now()))
-  const skipFirstAutoSave = useRef(true)
-  const [counts, setCounts] = useState<Record<string, number>>(() => {
-    const base = emptyCounts(menu)
-    if (!nightDraft?.itemSales?.length) return base
-    for (const row of nightDraft.itemSales) {
-      if (row.itemId in base) base[row.itemId] = row.qty
-    }
-    return base
-  })
+  const [counts, setCounts] = useState<Record<string, number>>(() => countsFromDraft(menu, nightDraft))
   const [loanRecords, setLoanRecords] = useState<LoanRecord[]>(() => nightDraft?.loans ?? [])
+  const lastAutoSig = useRef(autoSaveSig(counts, loanRecords, expenses))
   const [loanDrafts, setLoanDrafts] = useState<Record<string, { name: string; phone: string; qty: number }>>({})
   const [loanError, setLoanError] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
@@ -158,17 +168,29 @@ export default function NewEntry() {
     setLoanDrafts({})
     setLoanError('')
     setSaveError('')
-    skipFirstAutoSave.current = true
+    lastAutoSig.current = autoSaveSig({}, [], expenses)
     // intentionally only react to nightSession — menu sync is handled separately
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nightSession])
 
+  /** Another device changed tonight's sheet — load its counts and loans */
+  useEffect(() => {
+    if (draftRevision === 0) return
+    const nextCounts = countsFromDraft(menu, nightDraft)
+    const nextLoans = nightDraft?.loans ?? []
+    nightIdRef.current = nightDraft?.id ?? String(Date.now())
+    setCounts(nextCounts)
+    setLoanRecords(nextLoans)
+    setLoanError('')
+    lastAutoSig.current = autoSaveSig(nextCounts, nextLoans, expenses)
+    // only react to remote revisions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftRevision])
+
   /** Auto-save to History whenever sales / loans change */
   useEffect(() => {
-    if (skipFirstAutoSave.current) {
-      skipFirstAutoSave.current = false
-      return
-    }
+    const sig = autoSaveSig(counts, loanRecords, expenses)
+    if (sig === lastAutoSig.current) return
     if (!covers && !loanRecords.length) return
 
     const timer = window.setTimeout(() => {
@@ -200,6 +222,7 @@ export default function NewEntry() {
         status: operationalTotal > 0 || expenses.staff.length > 0 ? 'FINALIZED' : 'SALES',
       }
       saveNight(entry)
+      lastAutoSig.current = sig
       markAutoSaved()
       setAutoSavedFlash(true)
       window.setTimeout(() => setAutoSavedFlash(false), 1600)
@@ -208,6 +231,7 @@ export default function NewEntry() {
     return () => window.clearTimeout(timer)
   }, [
     cashSlsh,
+    counts,
     covers,
     expenses,
     grossSlsh,

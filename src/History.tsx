@@ -427,7 +427,7 @@ export default function History() {
 
       <section className="table-card">
         <div className="table-wrap">
-          <table>
+          <table className="history-table">
             <thead>
               <tr>
                 <th>DATE</th>
@@ -446,7 +446,7 @@ export default function History() {
               {rows.length ? (
                 rows.map((row) => (
                 <tr key={row.id}>
-                  <td>
+                  <td data-label="Date">
                     <div className="date-cell">
                       <strong>{row.date}</strong>
                       <span>
@@ -455,34 +455,34 @@ export default function History() {
                       </span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Total sales">
                     <CashCell slsh={row.totalSales} />
                   </td>
-                  <td>
+                  <td data-label="Cash">
                     <CashCell slsh={row.cashSales ?? row.totalSales - (row.loanAmount ?? 0)} />
                   </td>
-                  <td>
+                  <td data-label="Loan">
                     <CashCell slsh={row.loanAmount ?? 0} tone="expense" />
                   </td>
-                  <td>
+                  <td data-label="Expenses">
                     <CashCell slsh={-row.expenses} tone="expense" />
                   </td>
-                  <td>
+                  <td data-label="Cash net">
                     <CashCell slsh={row.netProfit} signed tone="profit" />
                   </td>
-                  <td>
+                  <td data-label="Covers">
                     <div className="date-cell">
                       <strong>{row.covers}</strong>
                       <span>{row.loanCovers ?? 0} loan</span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Loan names">
                     <div className="loan-names">{loanNames(row)}</div>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`status ${row.status.toLowerCase()}`}>{row.status}</span>
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <div className="row-actions">
                       <button
                         type="button"

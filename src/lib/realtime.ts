@@ -45,6 +45,9 @@ export function useRealtimeRefetch(
       if (status === 'SUBSCRIBED') schedule()
     })
 
+    // load right away — don't wait for the websocket to finish connecting
+    refetchRef.current()
+
     const onVisible = () => {
       if (document.visibilityState === 'visible') schedule()
     }

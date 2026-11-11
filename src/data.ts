@@ -1,7 +1,7 @@
 export type MenuCategory = 'grill' | 'plates' | 'sides' | 'juice' | 'cunto' | 'shaah'
 
 /** Top-level groups shown side by side on New Entry */
-export type MenuGroup = 'fastfood' | 'cuntowadani'
+export type MenuGroup = 'fastfood' | 'cuntowadani' | 'shaah'
 
 export type MenuIcon =
   | 'sandwich'
@@ -90,19 +90,21 @@ export type WaiterStat = {
   value: number
 }
 
-/** Per-waiter activity for a list of orders, busiest first */
+/** Per-waiter shaah activity for a list of orders, busiest first (only shaah lines count) */
 export function waiterStats(orders: PosOrder[] | undefined): WaiterStat[] {
   const map = new Map<string, WaiterStat>()
   for (const order of orders ?? []) {
     const name = order.waiter?.trim()
     if (!name) continue
+    const shaahLines = order.lines.filter((line) => line.category === 'shaah')
+    if (!shaahLines.length) continue
     const key = name.toLowerCase()
     const stat = map.get(key) ?? { name, orders: 0, shaahCups: 0, items: 0, value: 0 }
     stat.orders += 1
-    for (const line of order.lines) {
+    for (const line of shaahLines) {
       stat.items += line.qty
+      stat.shaahCups += line.qty
       stat.value += line.qty * line.unitPrice
-      if (line.category === 'shaah') stat.shaahCups += line.qty
     }
     map.set(key, stat)
   }
@@ -161,7 +163,8 @@ export const DEFAULT_PRICES: Record<string, number> = Object.fromEntries(
 
 export const MENU_GROUPS: { key: MenuGroup; title: string; hint: string }[] = [
   { key: 'fastfood', title: 'Fast Food', hint: 'Grill, plates, sides & fresh juices' },
-  { key: 'cuntowadani', title: 'Cuntowadani', hint: 'Traditional food & shaah' },
+  { key: 'cuntowadani', title: 'Cuntowadani', hint: 'Galay caano leh & traditional food' },
+  { key: 'shaah', title: 'Shaah (Tea)', hint: 'Tea served by the waiters' },
 ]
 
 export const MENU_SECTIONS: { key: MenuCategory; group: MenuGroup; title: string; hint: string }[] = [
@@ -170,7 +173,7 @@ export const MENU_SECTIONS: { key: MenuCategory; group: MenuGroup; title: string
   { key: 'sides', group: 'fastfood', title: 'Sides', hint: 'Crispy extras' },
   { key: 'juice', group: 'fastfood', title: 'Fresh Juices', hint: 'Cold pressed blends' },
   { key: 'cunto', group: 'cuntowadani', title: 'Cunto (Food)', hint: 'Galay caano leh & traditional dishes' },
-  { key: 'shaah', group: 'cuntowadani', title: 'Shaah (Tea)', hint: 'Shaah & hot drinks' },
+  { key: 'shaah', group: 'shaah', title: 'Shaah (Tea)', hint: 'Shaah & hot drinks · pick the waiter' },
 ]
 
 export function groupOfCategory(category: MenuCategory): MenuGroup {

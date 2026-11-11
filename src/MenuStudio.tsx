@@ -69,7 +69,7 @@ export default function MenuStudio() {
 
   const filtered = useMemo(() => {
     if (filter === 'all') return menu
-    if (filter === 'fastfood' || filter === 'cuntowadani') {
+    if (filter === 'fastfood' || filter === 'cuntowadani' || filter === 'shaah') {
       return menu.filter((item) => groupOfCategory(item.category) === filter)
     }
     return menu.filter((item) => item.category === filter)
@@ -316,7 +316,9 @@ export default function MenuStudio() {
             >
               {group.title} <b>{countsByCategory[group.key] ?? 0}</b>
             </button>
-            {MENU_SECTIONS.filter((section) => section.group === group.key).map((section) => (
+            {MENU_SECTIONS.filter((section) => section.group === group.key).length < 2
+              ? null
+              : MENU_SECTIONS.filter((section) => section.group === group.key).map((section) => (
               <button
                 key={section.key}
                 type="button"

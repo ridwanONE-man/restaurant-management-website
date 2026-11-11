@@ -1,4 +1,4 @@
-import { formatSlshAmount, waiterStats, type NightEntry } from './data'
+import { MENU_GROUPS, formatSlshAmount, groupOfCategory, waiterStats, type NightEntry } from './data'
 
 function escapeCsv(value: string | number) {
   const text = String(value)
@@ -31,9 +31,26 @@ export function buildNightReport(entry: NightEntry) {
     lines.push('')
   }
 
+  if (entry.orders?.length) {
+    lines.push('=== BY MENU GROUP ===')
+    for (const group of MENU_GROUPS) {
+      let qty = 0
+      let value = 0
+      for (const order of entry.orders) {
+        for (const line of order.lines) {
+          if (groupOfCategory(line.category) !== group.key) continue
+          qty += line.qty
+          value += line.qty * line.unitPrice
+        }
+      }
+      lines.push(`${group.title}: ${qty} sold · ${formatSlshAmount(value)}`)
+    }
+    lines.push('')
+  }
+
   const waiters = waiterStats(entry.orders)
   if (waiters.length) {
-    lines.push('=== WAITER ACTIVITY ===')
+    lines.push('=== TEA WAITERS (SHAAH) ===')
     lines.push('Waiter, Shaah cups, Orders, Value (SLSH)')
     for (const w of waiters) {
       lines.push(`${w.name}, ${w.shaahCups}, ${w.orders}, ${w.value}`)

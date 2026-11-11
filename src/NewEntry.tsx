@@ -12,6 +12,7 @@ import {
   Phone,
   Wallet,
   Coffee,
+  Wheat,
   UtensilsCrossed,
   Receipt,
   ChevronUp,
@@ -98,7 +99,8 @@ const GROUP_KEY = 'cff-entry-group'
 
 function loadGroup(): MenuGroup {
   try {
-    return localStorage.getItem(GROUP_KEY) === 'cuntowadani' ? 'cuntowadani' : 'fastfood'
+    const saved = localStorage.getItem(GROUP_KEY)
+    return saved === 'cuntowadani' || saved === 'shaah' ? saved : 'fastfood'
   } catch {
     return 'fastfood'
   }
@@ -326,6 +328,7 @@ export default function NewEntry() {
     const totals: Record<MenuGroup, { items: number; qty: number; value: number }> = {
       fastfood: { items: 0, qty: 0, value: 0 },
       cuntowadani: { items: 0, qty: 0, value: 0 },
+      shaah: { items: 0, qty: 0, value: 0 },
     }
     for (const item of menu) totals[groupOfCategory(item.category)].items += 1
     for (const order of orders) {
@@ -396,7 +399,7 @@ export default function NewEntry() {
         unitPrice: item.price,
       })),
       total: ticketTotal,
-      waiter: ticketWaiter || null,
+      waiter: ticketHasShaah ? ticketWaiter || null : null,
     }
     setOrders((prev) => [order, ...prev])
     setTicket({})
@@ -642,7 +645,13 @@ export default function NewEntry() {
                   onClick={() => pickGroup(group.key)}
                 >
                   <span className="group-tab__icon" aria-hidden>
-                    {group.key === 'fastfood' ? <UtensilsCrossed size={20} /> : <Coffee size={20} />}
+                    {group.key === 'fastfood' ? (
+                      <UtensilsCrossed size={20} />
+                    ) : group.key === 'cuntowadani' ? (
+                      <Wheat size={20} />
+                    ) : (
+                      <Coffee size={20} />
+                    )}
                   </span>
                   <span className="group-tab__copy">
                     <strong>{group.title}</strong>
@@ -767,15 +776,16 @@ export default function NewEntry() {
             ) : (
               <p className="pos-empty">
                 <Receipt size={22} />
-                Tap a food or shaah on the menu — it is added here automatically.
+                Tap a food, cuntowadani or shaah on the menu — it is added here automatically.
               </p>
             )}
 
-            <div className={`pos-waiter ${ticketHasShaah ? 'is-required' : ''}`}>
+            {ticketHasShaah ? (
+            <div className="pos-waiter is-required">
               <div className="pos-waiter__label">
                 <Users size={15} />
-                <span>WAITER</span>
-                {ticketHasShaah ? <em>Required for shaah</em> : <small>optional</small>}
+                <span>TEA WAITER</span>
+                <em>Who is taking the shaah?</em>
               </div>
               <div className="pos-waiter__chips">
                 {waiters.map((w) => (
@@ -811,6 +821,7 @@ export default function NewEntry() {
                 </button>
               </div>
             </div>
+            ) : null}
 
             {ticketError ? <p className="pos-error">{ticketError}</p> : null}
 

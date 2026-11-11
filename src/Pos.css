@@ -787,3 +787,229 @@
 .waiter-days table {
   display: table;
 }
+
+/* ---- Three groups: Fast Food | Cuntowadani | Shaah ---- */
+.group-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.group-tab--shaah .group-tab__icon {
+  background: rgba(var(--teal-rgb), 0.14);
+  color: var(--teal);
+}
+
+.group-tab--shaah.is-active {
+  border-color: var(--teal);
+  background: linear-gradient(135deg, rgba(var(--teal-rgb), 0.16), rgba(var(--teal-rgb), 0.04)), var(--surface);
+}
+
+.group-tab--shaah.is-active .group-tab__stats b {
+  color: var(--teal);
+}
+
+/* not enough room for icon + text + numbers in one row: stack them */
+@media (max-width: 1400px) {
+  .group-tab {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.85rem 0.9rem;
+  }
+
+  .group-tab__copy {
+    width: 100%;
+  }
+
+  .group-tab__stats {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .group-tabs {
+    gap: 0.45rem;
+  }
+
+  .group-tab {
+    padding: 0.7rem 0.6rem;
+    border-radius: 14px;
+    gap: 0.45rem;
+  }
+
+  .group-tab__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .group-tab__copy strong {
+    font-size: 0.86rem;
+    line-height: 1.2;
+  }
+
+  .group-tab__stats {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
+
+  .group-tab__stats b {
+    font-size: 1.05rem;
+  }
+
+  .group-tab__stats small {
+    font-size: 0.66rem;
+  }
+}
+
+/* ---- Analytics: menu group breakdown ---- */
+.group-analytics {
+  margin-bottom: 1.25rem;
+}
+
+.group-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.group-stat {
+  --g: var(--accent);
+  --g-rgb: var(--accent-rgb);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.95rem;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--g-rgb), 0.3);
+  background: linear-gradient(160deg, rgba(var(--g-rgb), 0.1), transparent 60%), var(--surface-2);
+}
+
+.group-stat--cuntowadani {
+  --g: var(--violet);
+  --g-rgb: var(--violet-rgb);
+}
+
+.group-stat--shaah {
+  --g: var(--teal);
+  --g-rgb: var(--teal-rgb);
+}
+
+.group-stat__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.group-stat__icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(var(--g-rgb), 0.15);
+  color: var(--g);
+}
+
+.group-stat strong {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--g);
+}
+
+.group-stat strong small {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.group-stat em {
+  font-style: normal;
+  font-weight: 700;
+}
+
+.group-stat > small {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.group-stat__bar {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.group-stat__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--g);
+}
+
+.group-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.group-top__col h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--g);
+}
+
+.group-top__col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.group-top__col li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.group-top__col li:last-child {
+  border-bottom: 0;
+}
+
+.group-top__col li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-top__col li b {
+  color: var(--g);
+}
+
+.group-top__col li em {
+  font-style: normal;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 767px) {
+  .group-stats,
+  .group-top {
+    grid-template-columns: 1fr;
+  }
+}

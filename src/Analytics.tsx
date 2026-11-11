@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react'
 import {
   Banknote,
   ChartColumn,
+  Coffee,
   HandCoins,
+  Layers,
+  UtensilsCrossed,
+  Wheat,
   PieChart,
   TrendingUp,
   Users,
@@ -10,7 +14,16 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useAuth } from './auth'
-import { formatSlshAmount, waiterStats, type NightEntry } from './data'
+import {
+  MENU_GROUPS,
+  formatSlshAmount,
+  groupOfCategory,
+  waiterStats,
+  type MenuCategory,
+  type MenuGroup,
+  type NightEntry,
+} from './data'
+import { usePricing } from './pricing'
 import LiveClock from './LiveClock'
 import './Analytics.css'
 import './Pos.css'
@@ -153,6 +166,7 @@ function PieChartView({
 
 export default function Analytics() {
   const { history } = useAuth()
+  const { menu } = usePricing()
   const [range, setRange] = useState<RangeKey>('30')
 
   const scoped = useMemo(
@@ -258,6 +272,73 @@ export default function Analytics() {
     return [...map.values()].sort((a, b) => b.total - a.total).slice(0, 6)
   }, [scoped])
 
+  /** Fast Food vs Cuntowadani vs Shaah across the selected range */
+  const groupBoard = useMemo(() => {
+    const categoryById = new Map<string, MenuCategory>(menu.map((m) => [m.id, m.category]))
+    type Line = { id: string; name: string; group: MenuGroup; qty: number; value: number }
+    const linesOf = (row: NightEntry): Line[] => {
+      if (row.orders?.length) {
+        return row.orders.flatMap((o) =>
+          o.lines.map((l) => ({
+            id: l.itemId,
+            name: l.itemName,
+            group: groupOfCategory(l.category),
+            qty: l.qty,
+            value: l.qty * l.unitPrice,
+          })),
+        )
+      }
+      return (row.itemSales ?? []).map((l) => ({
+        id: l.itemId,
+        name: l.itemName,
+        group: groupOfCategory(categoryById.get(l.itemId) ?? 'grill'),
+        qty: l.qty,
+        value: l.value,
+      }))
+    }
+
+    const empty = () => ({ qty: 0, value: 0, nights: 0 })
+    const totals: Record<MenuGroup, { qty: number; value: number; nights: number }> = {
+      fastfood: empty(),
+      cuntowadani: empty(),
+      shaah: empty(),
+    }
+    const items: Record<MenuGroup, Map<string, { name: string; qty: number; value: number }>> = {
+      fastfood: new Map(),
+      cuntowadani: new Map(),
+      shaah: new Map(),
+    }
+    const perNight: { id: string; label: string; qty: Record<MenuGroup, number> }[] = []
+
+    for (const row of scoped) {
+      const nightQty: Record<MenuGroup, number> = { fastfood: 0, cuntowadani: 0, shaah: 0 }
+      for (const line of linesOf(row)) {
+        totals[line.group].qty += line.qty
+        totals[line.group].value += line.value
+        nightQty[line.group] += line.qty
+        const cur = items[line.group].get(line.id) ?? { name: line.name, qty: 0, value: 0 }
+        cur.qty += line.qty
+        cur.value += line.value
+        items[line.group].set(line.id, cur)
+      }
+      for (const g of MENU_GROUPS) if (nightQty[g.key] > 0) totals[g.key].nights += 1
+      perNight.push({ id: row.id, label: row.date.replace(/,?\s*\d{4}$/, '').trim(), qty: nightQty })
+    }
+
+    const allValue = MENU_GROUPS.reduce((sum, g) => sum + totals[g.key].value, 0)
+    return {
+      groups: MENU_GROUPS.map((g) => ({
+        ...g,
+        ...totals[g.key],
+        share: allValue ? Math.round((totals[g.key].value / allValue) * 100) : 0,
+        avgQty: scoped.length ? Math.round((totals[g.key].qty / scoped.length) * 10) / 10 : 0,
+        top: [...items[g.key].values()].sort((a, b) => b.qty - a.qty).slice(0, 5),
+      })),
+      perNight: perNight.slice(-7),
+      hasData: allValue > 0 || MENU_GROUPS.some((g) => totals[g.key].qty > 0),
+    }
+  }, [menu, scoped])
+
   /** Waiter comparison across the selected range */
   const waiterBoard = useMemo(() => {
     const total = waiterStats(scoped.flatMap((row) => row.orders ?? []))
@@ -358,6 +439,100 @@ export default function Analytics() {
             </article>
           </div>
 
+          <section className="panel chart-panel group-analytics">
+            <header>
+              <Layers size={18} className="accent-green" />
+              <div>
+                <h2>Fast Food · Cuntowadani · Shaah</h2>
+                <p>How much of each menu group was sold in this range</p>
+              </div>
+            </header>
+            {groupBoard.hasData ? (
+              <>
+                <div className="group-stats">
+                  {groupBoard.groups.map((g) => (
+                    <article key={g.key} className={`group-stat group-stat--${g.key}`}>
+                      <span className="group-stat__head">
+                        <span className="group-stat__icon" aria-hidden>
+                          {g.key === 'fastfood' ? (
+                            <UtensilsCrossed size={17} />
+                          ) : g.key === 'cuntowadani' ? (
+                            <Wheat size={17} />
+                          ) : (
+                            <Coffee size={17} />
+                          )}
+                        </span>
+                        {g.title}
+                      </span>
+                      <strong>
+                        {g.qty.toLocaleString()} <small>{g.key === 'shaah' ? 'cups' : 'items'}</small>
+                      </strong>
+                      <em>{formatSlshAmount(g.value)}</em>
+                      <div className="group-stat__bar" aria-label={`${g.share}% of sales`}>
+                        <i style={{ width: `${g.share}%` }} />
+                      </div>
+                      <small>
+                        {g.share}% of sales · {g.avgQty} per night
+                      </small>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="group-top">
+                  {groupBoard.groups
+                    .filter((g) => g.key !== 'fastfood')
+                    .map((g) => (
+                      <div key={g.key} className={`group-top__col group-stat--${g.key}`}>
+                        <h3>Top {g.title}</h3>
+                        {g.top.length ? (
+                          <ul>
+                            {g.top.map((item) => (
+                              <li key={item.name}>
+                                <span>{item.name}</span>
+                                <b>{item.qty.toLocaleString()}</b>
+                                <em>{formatSlshAmount(item.value)}</em>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="chart-empty">No {g.title} sold in this range.</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+
+                {groupBoard.perNight.length > 1 ? (
+                  <div className="waiter-days">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Group</th>
+                          {groupBoard.perNight.map((n) => (
+                            <th key={n.id}>{n.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupBoard.groups.map((g) => (
+                          <tr key={g.key}>
+                            <td>{g.title}</td>
+                            {groupBoard.perNight.map((n) => (
+                              <td key={n.id} className={n.qty[g.key] ? 'has-value' : undefined}>
+                                {n.qty[g.key] || '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="chart-empty">Sales per group appear after you save nights with sales.</p>
+            )}
+          </section>
+
           <div className="charts-grid">
             <section className="panel chart-panel">
               <header>
@@ -430,7 +605,7 @@ export default function Analytics() {
               <Users size={18} className="accent-green" />
               <div>
                 <h2>Waiter activity</h2>
-                <p>Shaah served per waiter in this range — compare who is busiest</p>
+                <p>Tea waiters · shaah cups served in this range — compare who is busiest</p>
               </div>
             </header>
             {waiterBoard.total.length ? (

@@ -13,6 +13,12 @@ import {
   Wallet,
   Coffee,
   UtensilsCrossed,
+  Receipt,
+  ChevronUp,
+  X,
+  Check,
+  Users,
+  Ban,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from './auth'
@@ -27,30 +33,65 @@ import {
   type MenuGroup,
   type MenuItem,
   type NightEntry,
+  type PosOrder,
+  waiterStats,
 } from './data'
+import { useWaiters } from './waiters'
 import { getMenuIcon } from './menuIcons'
 import LiveClock, { formatDayLabel, formatEntryDate } from './LiveClock'
 import { downloadNightReport } from './report'
 import './NewEntry.css'
+import './Pos.css'
 
 function emptyCounts(menu: MenuItem[]) {
   return Object.fromEntries(menu.map((item) => [item.id, 0])) as Record<string, number>
 }
 
-function countsFromDraft(menu: MenuItem[], draft: { itemSales?: { itemId: string; qty: number }[] } | null) {
+type DraftLike = {
+  orders?: PosOrder[]
+  itemSales?: { itemId: string; itemName: string; qty: number; unitPrice: number; value: number }[]
+} | null
+
+/** Orders of the working night. Older drafts only had totals — turn those into one opening order. */
+function ordersFromDraft(menu: MenuItem[], draft: DraftLike): PosOrder[] {
+  if (draft?.orders?.length) return draft.orders
+  const lines = (draft?.itemSales ?? [])
+    .filter((row) => row.qty > 0)
+    .map((row) => ({
+      itemId: row.itemId,
+      itemName: row.itemName,
+      category: menu.find((m) => m.id === row.itemId)?.category ?? ('grill' as const),
+      qty: row.qty,
+      unitPrice: row.qty ? row.value / row.qty : row.unitPrice,
+    }))
+  if (!lines.length) return []
+  return [
+    {
+      id: 'opening-count',
+      at: new Date().toISOString(),
+      time: 'Earlier',
+      lines,
+      total: lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0),
+      waiter: null,
+    },
+  ]
+}
+
+function countsFromOrders(menu: MenuItem[], orders: PosOrder[]) {
   const base = emptyCounts(menu)
-  for (const row of draft?.itemSales ?? []) {
-    if (row.itemId in base) base[row.itemId] = row.qty
+  for (const order of orders) {
+    for (const line of order.lines) base[line.itemId] = (base[line.itemId] ?? 0) + line.qty
   }
   return base
 }
 
 /** Fingerprint of what auto-save would write — skips saves for changes that came from another device */
-function autoSaveSig(counts: Record<string, number>, loans: LoanRecord[], expenses: unknown) {
-  const sold = Object.entries(counts)
-    .filter(([, qty]) => qty > 0)
-    .sort(([a], [b]) => a.localeCompare(b))
-  return JSON.stringify({ sold, loans, expenses })
+function autoSaveSig(orders: PosOrder[], loans: LoanRecord[], expenses: unknown) {
+  return JSON.stringify({ orders: orders.map((o) => [o.id, o.total, o.waiter ?? '']), loans, expenses })
+}
+
+function newOrderId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
 
 const GROUP_KEY = 'cff-entry-group'
@@ -86,9 +127,20 @@ export default function NewEntry() {
     buildHistoryEntry,
   } = useLedger()
   const nightIdRef = useRef(nightDraft?.id ?? String(Date.now()))
-  const [counts, setCounts] = useState<Record<string, number>>(() => countsFromDraft(menu, nightDraft))
+  const { waiters, addWaiter } = useWaiters()
+  const [orders, setOrders] = useState<PosOrder[]>(() => ordersFromDraft(menu, nightDraft))
+  const counts = useMemo(() => countsFromOrders(menu, orders), [menu, orders])
   const [loanRecords, setLoanRecords] = useState<LoanRecord[]>(() => nightDraft?.loans ?? [])
-  const lastAutoSig = useRef(autoSaveSig(counts, loanRecords, expenses))
+  const lastAutoSig = useRef(autoSaveSig(orders, loanRecords, expenses))
+  /** The order being rung up on this device (shared once it is completed) */
+  const [ticket, setTicket] = useState<Record<string, number>>({})
+  const [ticketWaiter, setTicketWaiter] = useState('')
+  const [ticketError, setTicketError] = useState('')
+  const [ticketOpen, setTicketOpen] = useState(false)
+  const [saleFlash, setSaleFlash] = useState('')
+  const [newWaiterName, setNewWaiterName] = useState('')
+  const [addingWaiter, setAddingWaiter] = useState(false)
+  const [showAllOrders, setShowAllOrders] = useState(false)
   const [loanDrafts, setLoanDrafts] = useState<Record<string, { name: string; phone: string; qty: number }>>({})
   const [loanError, setLoanError] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
@@ -105,12 +157,11 @@ export default function NewEntry() {
     }
   }
 
-  /** Keep counts aligned when menu items are added or removed */
+  /** Drop loans / ticket lines for items that were removed from the menu */
   useEffect(() => {
-    setCounts((prev) => {
-      const next = emptyCounts(menu)
-      for (const item of menu) next[item.id] = prev[item.id] ?? 0
-      return next
+    setTicket((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([id]) => menu.some((m) => m.id === id)))
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next
     })
     setLoanRecords((prev) => prev.filter((loan) => menu.some((item) => item.id === loan.itemId)))
   }, [menu])
@@ -128,10 +179,8 @@ export default function NewEntry() {
     return map
   }, [loanRecords, menu])
 
-  const grossSlsh = useMemo(
-    () => menu.reduce((sum, item) => sum + item.price * (counts[item.id] ?? 0), 0),
-    [counts, menu],
-  )
+  /** Money uses the price at the moment of each sale */
+  const grossSlsh = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders])
 
   const loanSlsh = useMemo(
     () => loanRecords.reduce((sum, loan) => sum + loan.value, 0),
@@ -143,22 +192,19 @@ export default function NewEntry() {
   const loanCovers = loanRecords.reduce((a, b) => a + b.qty, 0)
   const paidCovers = covers - loanCovers
 
-  const itemSales = useMemo(
-    () =>
-      menu
-        .map((item) => {
-          const qty = counts[item.id] ?? 0
-          return {
-            itemId: item.id,
-            itemName: item.name,
-            qty,
-            unitPrice: item.price,
-            value: item.price * qty,
-          }
-        })
-        .filter((row) => row.qty > 0),
-    [counts, menu],
-  )
+  const itemSales = useMemo(() => {
+    const map = new Map<string, { itemId: string; itemName: string; qty: number; unitPrice: number; value: number }>()
+    for (const order of orders) {
+      for (const line of order.lines) {
+        const row = map.get(line.itemId) ?? { itemId: line.itemId, itemName: line.itemName, qty: 0, unitPrice: 0, value: 0 }
+        row.qty += line.qty
+        row.value += line.qty * line.unitPrice
+        row.unitPrice = row.qty ? Math.round(row.value / row.qty) : line.unitPrice
+        map.set(line.itemId, row)
+      }
+    }
+    return [...map.values()].filter((row) => row.qty > 0)
+  }, [orders])
 
   useEffect(() => {
     setNightDraft({
@@ -172,8 +218,10 @@ export default function NewEntry() {
       loanCovers,
       loans: loanRecords,
       itemSales,
+      orders,
     })
   }, [
+    orders,
     cashSlsh,
     covers,
     grossSlsh,
@@ -188,12 +236,14 @@ export default function NewEntry() {
   useEffect(() => {
     if (nightSession === 0) return
     nightIdRef.current = String(Date.now())
-    setCounts(emptyCounts(menu))
+    setOrders([])
+    setTicket({})
+    setTicketError('')
     setLoanRecords([])
     setLoanDrafts({})
     setLoanError('')
     setSaveError('')
-    lastAutoSig.current = autoSaveSig({}, [], expenses)
+    lastAutoSig.current = autoSaveSig([], [], expenses)
     // intentionally only react to nightSession — menu sync is handled separately
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nightSession])
@@ -201,20 +251,20 @@ export default function NewEntry() {
   /** Another device changed tonight's sheet — load its counts and loans */
   useEffect(() => {
     if (draftRevision === 0) return
-    const nextCounts = countsFromDraft(menu, nightDraft)
+    const nextOrders = ordersFromDraft(menu, nightDraft)
     const nextLoans = nightDraft?.loans ?? []
     nightIdRef.current = nightDraft?.id ?? String(Date.now())
-    setCounts(nextCounts)
+    setOrders(nextOrders)
     setLoanRecords(nextLoans)
     setLoanError('')
-    lastAutoSig.current = autoSaveSig(nextCounts, nextLoans, expenses)
+    lastAutoSig.current = autoSaveSig(nextOrders, nextLoans, expenses)
     // only react to remote revisions
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftRevision])
 
   /** Auto-save to History whenever sales / loans change */
   useEffect(() => {
-    const sig = autoSaveSig(counts, loanRecords, expenses)
+    const sig = autoSaveSig(orders, loanRecords, expenses)
     if (sig === lastAutoSig.current) return
     if (!covers && !loanRecords.length) return
 
@@ -230,6 +280,7 @@ export default function NewEntry() {
         loanCovers,
         loans: loanRecords,
         itemSales,
+        orders,
       }
       setNightDraft(draft)
       const entry: NightEntry = {
@@ -256,7 +307,7 @@ export default function NewEntry() {
     return () => window.clearTimeout(timer)
   }, [
     cashSlsh,
-    counts,
+    orders,
     covers,
     expenses,
     grossSlsh,
@@ -276,15 +327,113 @@ export default function NewEntry() {
       fastfood: { items: 0, qty: 0, value: 0 },
       cuntowadani: { items: 0, qty: 0, value: 0 },
     }
-    for (const item of menu) {
-      const t = totals[groupOfCategory(item.category)]
-      const qty = counts[item.id] ?? 0
-      t.items += 1
-      t.qty += qty
-      t.value += qty * item.price
+    for (const item of menu) totals[groupOfCategory(item.category)].items += 1
+    for (const order of orders) {
+      for (const line of order.lines) {
+        const t = totals[groupOfCategory(line.category)]
+        t.qty += line.qty
+        t.value += line.qty * line.unitPrice
+      }
     }
     return totals
-  }, [counts, menu])
+  }, [orders, menu])
+
+  /* ------------------------------------------------------------------ POS */
+  const ticketLines = useMemo(
+    () =>
+      Object.entries(ticket)
+        .map(([id, qty]) => ({ item: menu.find((m) => m.id === id), qty }))
+        .filter((row): row is { item: MenuItem; qty: number } => Boolean(row.item) && row.qty > 0),
+    [menu, ticket],
+  )
+  const ticketQty = ticketLines.reduce((sum, row) => sum + row.qty, 0)
+  const ticketTotal = ticketLines.reduce((sum, row) => sum + row.qty * row.item.price, 0)
+  const ticketHasShaah = ticketLines.some((row) => row.item.category === 'shaah')
+
+  const waiterActivity = useMemo(() => waiterStats(orders), [orders])
+
+  function addToTicket(item: MenuItem) {
+    setTicket((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }))
+    setTicketError('')
+    setSaleFlash('')
+  }
+
+  function changeTicketQty(id: string, delta: number) {
+    setTicket((prev) => {
+      const qty = Math.max(0, (prev[id] ?? 0) + delta)
+      const next = { ...prev }
+      if (qty === 0) delete next[id]
+      else next[id] = qty
+      return next
+    })
+    setTicketError('')
+  }
+
+  function clearTicket() {
+    setTicket({})
+    setTicketError('')
+  }
+
+  function completeSale() {
+    if (!ticketLines.length) {
+      setTicketError('Tap items to add them to the order first.')
+      return
+    }
+    if (ticketHasShaah && !ticketWaiter) {
+      setTicketError('Pick the waiter who is taking the shaah.')
+      setTicketOpen(true)
+      return
+    }
+    const order: PosOrder = {
+      id: newOrderId(),
+      at: new Date().toISOString(),
+      time: timeNowLabel(),
+      lines: ticketLines.map(({ item, qty }) => ({
+        itemId: item.id,
+        itemName: item.name,
+        category: item.category,
+        qty,
+        unitPrice: item.price,
+      })),
+      total: ticketTotal,
+      waiter: ticketWaiter || null,
+    }
+    setOrders((prev) => [order, ...prev])
+    setTicket({})
+    setTicketError('')
+    setTicketOpen(false)
+    setSaleFlash(`Sale ${formatSlshAmount(order.total)} recorded${order.waiter ? ` · ${order.waiter}` : ''}`)
+    window.setTimeout(() => setSaleFlash(''), 2600)
+  }
+
+  function voidOrder(order: PosOrder) {
+    // cancelling must not leave fewer sold items than are on loan
+    const after = countsFromOrders(
+      menu,
+      orders.filter((o) => o.id !== order.id),
+    )
+    const blocked = order.lines.find((line) => (after[line.itemId] ?? 0) < (loanQtyByItem[line.itemId] ?? 0))
+    if (blocked) {
+      setLoanError(`Remove the ${blocked.itemName} loans first — this sale is needed to cover them.`)
+      return
+    }
+    if (!window.confirm(`Cancel the ${order.time} sale of ${formatSlshAmount(order.total)}?`)) return
+    setOrders((prev) => prev.filter((o) => o.id !== order.id))
+  }
+
+  async function onAddWaiter() {
+    if (addingWaiter) return
+    setAddingWaiter(true)
+    const result = await addWaiter(newWaiterName)
+    setAddingWaiter(false)
+    if (!result.ok) {
+      setTicketError(result.error)
+      return
+    }
+    setTicketWaiter(result.waiter.name)
+    setNewWaiterName('')
+    setTicketError('')
+  }
 
   const loansByPerson = useMemo(() => {
     const map = new Map<string, { name: string; phone: string; total: number; lines: LoanRecord[] }>()
@@ -323,22 +472,10 @@ export default function NewEntry() {
         loanCovers,
         loans: loanRecords,
         itemSales,
+        orders,
         status: 'SALES',
       }
     )
-  }
-
-  function bumpSold(id: string, delta: number) {
-    setCounts((prev) => {
-      const nextQty = Math.max(0, (prev[id] ?? 0) + delta)
-      const loaned = loanQtyByItem[id] ?? 0
-      if (nextQty < loaned) {
-        setLoanError(`Cannot go below loaned qty (${loaned}) for this item. Remove loans first.`)
-        return prev
-      }
-      setLoanError('')
-      return { ...prev, [id]: nextQty }
-    })
   }
 
   function getDraft(itemId: string) {
@@ -489,118 +626,295 @@ export default function NewEntry() {
         </p>
       ) : null}
 
-      <div className="group-tabs" role="tablist" aria-label="Menu group">
-        {MENU_GROUPS.map((group) => {
-          const t = groupTotals[group.key]
-          const active = activeGroup === group.key
-          return (
-            <button
-              key={group.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`group-tab group-tab--${group.key} ${active ? 'is-active' : ''}`}
-              onClick={() => pickGroup(group.key)}
-            >
-              <span className="group-tab__icon" aria-hidden>
-                {group.key === 'fastfood' ? <UtensilsCrossed size={20} /> : <Coffee size={20} />}
-              </span>
-              <span className="group-tab__copy">
-                <strong>{group.title}</strong>
-                <em>{group.hint}</em>
-              </span>
-              <span className="group-tab__stats">
-                <b>{t.qty}</b>
-                <small>{formatSlshAmount(t.value)}</small>
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <div className="pos-layout">
+        <div className="pos-menu">
+          <div className="group-tabs" role="tablist" aria-label="Menu group">
+            {MENU_GROUPS.map((group) => {
+              const t = groupTotals[group.key]
+              const active = activeGroup === group.key
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`group-tab group-tab--${group.key} ${active ? 'is-active' : ''}`}
+                  onClick={() => pickGroup(group.key)}
+                >
+                  <span className="group-tab__icon" aria-hidden>
+                    {group.key === 'fastfood' ? <UtensilsCrossed size={20} /> : <Coffee size={20} />}
+                  </span>
+                  <span className="group-tab__copy">
+                    <strong>{group.title}</strong>
+                    <em>{group.hint}</em>
+                  </span>
+                  <span className="group-tab__stats">
+                    <b>{t.qty}</b>
+                    <small>{formatSlshAmount(t.value)}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
 
-      {groupTotals[activeGroup].items === 0 ? (
-        <section className="panel group-empty">
-          <p>
-            No {MENU_GROUPS.find((g) => g.key === activeGroup)?.title} items yet.
-          </p>
-          <Link to="/app/menu" className="expenses-link-btn">
-            <Plus size={16} /> Add items in Menu Studio
-          </Link>
-        </section>
-      ) : null}
+          {groupTotals[activeGroup].items === 0 ? (
+            <section className="panel group-empty">
+              <p>No {MENU_GROUPS.find((g) => g.key === activeGroup)?.title} items yet.</p>
+              <Link to="/app/menu" className="expenses-link-btn">
+                <Plus size={16} /> Add items in Menu Studio
+              </Link>
+            </section>
+          ) : null}
 
-      {MENU_SECTIONS.filter((section) => section.group === activeGroup).map((section) => {
-        const items = menu.filter((item) => item.category === section.key)
-        if (!items.length) return null
-        return (
-          <section key={section.key} className={`menu-section menu-section--${section.key}`}>
-            <div className="menu-section__head">
+          {MENU_SECTIONS.filter((section) => section.group === activeGroup).map((section) => {
+            const items = menu.filter((item) => item.category === section.key)
+            if (!items.length) return null
+            return (
+              <section key={section.key} className={`menu-section menu-section--${section.key}`}>
+                <div className="menu-section__head">
+                  <div>
+                    <h2>{section.title}</h2>
+                    <p>{section.hint} · tap to add to the order</p>
+                  </div>
+                </div>
+                <div className="item-grid pos-grid">
+                  {items.map((item) => {
+                    const Icon = getMenuIcon(item.icon)
+                    const sold = counts[item.id] ?? 0
+                    const loanQty = loanQtyByItem[item.id] ?? 0
+                    const inTicket = ticket[item.id] ?? 0
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`item-card pos-tile tone-${item.category} ${inTicket ? 'is-in-ticket' : ''}`}
+                        onClick={() => addToTicket(item)}
+                        aria-label={`Add ${item.name} to order`}
+                      >
+                        {inTicket ? <span className="pos-tile__badge">{inTicket}</span> : null}
+                        <span className="item-card__meta">
+                          <span className="item-icon">
+                            <Icon size={20} />
+                          </span>
+                          <span className="item-copy">
+                            <span className="pos-tile__name">{item.name}</span>
+                            <span className="price-slsh-main">{item.price.toLocaleString()} SLSH</span>
+                          </span>
+                        </span>
+                        <span className="pos-tile__foot">
+                          <span>
+                            Sold tonight <b>{sold}</b>
+                          </span>
+                          {loanQty ? <em>{loanQty} loan</em> : null}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+
+        <aside className={`pos-ticket ${ticketOpen ? 'is-open' : ''} ${ticketQty ? 'has-items' : ''}`} aria-label="Current order">
+          <button type="button" className="pos-ticket__bar" onClick={() => setTicketOpen((v) => !v)}>
+            <span className="pos-ticket__bar-icon">
+              <Receipt size={18} />
+              {ticketQty ? <b>{ticketQty}</b> : null}
+            </span>
+            <span className="pos-ticket__bar-copy">
+              <strong>{ticketQty ? `${ticketQty} item${ticketQty === 1 ? '' : 's'}` : 'Current order'}</strong>
+              <small>{ticketQty ? 'Tap to review & complete' : 'Tap items to start'}</small>
+            </span>
+            <span className="pos-ticket__bar-total">{formatSlshAmount(ticketTotal)}</span>
+            <ChevronUp size={18} className="pos-ticket__chevron" />
+          </button>
+
+          <div className="pos-ticket__body">
+            <header className="pos-ticket__head">
               <div>
-                <h2>{section.title}</h2>
-                <p>{section.hint} · count sold, then assign loans by name</p>
+                <h2>Current order</h2>
+                <p>{ticketQty ? `${ticketQty} item${ticketQty === 1 ? '' : 's'}` : 'Tap items on the menu'}</p>
+              </div>
+              {ticketQty ? (
+                <button type="button" className="pos-ticket__clear" onClick={clearTicket}>
+                  <X size={15} /> Clear
+                </button>
+              ) : null}
+            </header>
+
+            {ticketLines.length ? (
+              <ul className="pos-lines">
+                {ticketLines.map(({ item, qty }) => (
+                  <li key={item.id} className={`tone-${item.category}`}>
+                    <div className="pos-lines__name">
+                      <strong>{item.name}</strong>
+                      <span>{item.price.toLocaleString()} SLSH each</span>
+                    </div>
+                    <div className="pos-lines__qty">
+                      <button type="button" aria-label={`One less ${item.name}`} onClick={() => changeTicketQty(item.id, -1)}>
+                        <Minus size={14} />
+                      </button>
+                      <b>{qty}</b>
+                      <button type="button" aria-label={`One more ${item.name}`} onClick={() => changeTicketQty(item.id, 1)}>
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <strong className="pos-lines__total">{(qty * item.price).toLocaleString()}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pos-empty">
+                <Receipt size={22} />
+                Tap a food or shaah on the menu — it is added here automatically.
+              </p>
+            )}
+
+            <div className={`pos-waiter ${ticketHasShaah ? 'is-required' : ''}`}>
+              <div className="pos-waiter__label">
+                <Users size={15} />
+                <span>WAITER</span>
+                {ticketHasShaah ? <em>Required for shaah</em> : <small>optional</small>}
+              </div>
+              <div className="pos-waiter__chips">
+                {waiters.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    className={ticketWaiter === w.name ? 'active' : undefined}
+                    onClick={() => {
+                      setTicketWaiter((cur) => (cur === w.name ? '' : w.name))
+                      setTicketError('')
+                    }}
+                  >
+                    {ticketWaiter === w.name ? <Check size={13} /> : null}
+                    {w.name}
+                  </button>
+                ))}
+              </div>
+              <div className="pos-waiter__add">
+                <input
+                  type="text"
+                  value={newWaiterName}
+                  placeholder={waiters.length ? 'New waiter name' : 'Add the first waiter'}
+                  onChange={(e) => setNewWaiterName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void onAddWaiter()
+                    }
+                  }}
+                />
+                <button type="button" onClick={() => void onAddWaiter()} disabled={!newWaiterName.trim() || addingWaiter}>
+                  <Plus size={14} /> Add
+                </button>
               </div>
             </div>
-            <div className="item-grid">
-              {items.map((item) => {
-                const Icon = getMenuIcon(item.icon)
-                const qty = counts[item.id] ?? 0
-                const loanQty = loanQtyByItem[item.id] ?? 0
-                const paidQty = qty - loanQty
-                const lineTotal = item.price * qty
-                const loanTotal = item.price * loanQty
-                return (
-                  <article key={item.id} className={`item-card tone-${item.category}`}>
-                    <div className="item-card__meta">
-                      <div className="item-icon">
-                        <Icon size={20} />
-                      </div>
-                      <div className="item-copy">
-                        <h3>{item.name}</h3>
-                        <div className="price-stack">
-                          <span className="price-slsh-main">{item.price.toLocaleString()} SLSH</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="count-block">
-                      <div className="count-block__label">
-                        <span>Sold tonight</span>
-                        <em>
-                          {paidQty} paid · {loanQty} loan
-                        </em>
-                      </div>
-                      <div className="counter">
-                        <button type="button" className="counter-btn minus" onClick={() => bumpSold(item.id, -1)}>
-                          <Minus size={16} />
-                        </button>
-                        <strong>{qty}</strong>
-                        <button type="button" className="counter-btn plus" onClick={() => bumpSold(item.id, 1)}>
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    </div>
+            {ticketError ? <p className="pos-error">{ticketError}</p> : null}
 
-                    {qty > 0 ? (
-                      <div className="line-total line-total--split">
-                        <div>
-                          <span>Line total</span>
-                          <strong className="line-total__slsh">{formatSlshAmount(lineTotal)}</strong>
-                        </div>
-                        {loanQty > 0 ? (
-                          <div>
-                            <span>Loan value</span>
-                            <strong className="line-total__loan">{formatSlshAmount(loanTotal)}</strong>
-                          </div>
-                        ) : null}
-                      </div>
+            <div className="pos-total">
+              <span>Total</span>
+              <strong>{formatSlshAmount(ticketTotal)}</strong>
+            </div>
+            <button type="button" className="save-btn pos-complete" onClick={completeSale} disabled={!ticketQty}>
+              <Check size={18} />
+              COMPLETE SALE
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      {saleFlash ? <p className="entry-save-ok pos-flash">{saleFlash}</p> : null}
+
+      <div className="pos-insights">
+        <section className="panel pos-orders">
+          <header>
+            <Receipt size={18} className="accent-green" />
+            <div>
+              <h2>Tonight&apos;s sales</h2>
+              <p>
+                {orders.length} sale{orders.length === 1 ? '' : 's'} · {formatSlshAmount(grossSlsh)} · newest first
+              </p>
+            </div>
+          </header>
+          {orders.length ? (
+            <ul className="order-list">
+              {orders.slice(0, showAllOrders ? undefined : 12).map((order) => (
+                <li key={order.id}>
+                  <span className="order-list__time">{order.time}</span>
+                  <div className="order-list__body">
+                    <strong>
+                      {order.lines.map((l) => `${l.qty}× ${l.itemName}`).join(', ')}
+                    </strong>
+                    {order.waiter ? (
+                      <span className="order-list__waiter">
+                        <Users size={12} /> {order.waiter}
+                      </span>
                     ) : null}
-                  </article>
+                  </div>
+                  <b className="order-list__total">{order.total.toLocaleString()}</b>
+                  <button
+                    type="button"
+                    className="order-list__void"
+                    aria-label={`Cancel the ${order.time} sale`}
+                    title="Cancel this sale"
+                    onClick={() => voidOrder(order)}
+                  >
+                    <Ban size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="loan-empty">No sales yet tonight. Completed orders appear here with their time.</p>
+          )}
+          {orders.length > 12 ? (
+            <button type="button" className="order-list__more" onClick={() => setShowAllOrders((v) => !v)}>
+              {showAllOrders ? 'Show fewer' : `Show all ${orders.length} sales`}
+            </button>
+          ) : null}
+        </section>
+
+        <section className="panel waiter-panel">
+          <header>
+            <Users size={18} className="accent-orange" />
+            <div>
+              <h2>Waiter activity</h2>
+              <p>Shaah served tonight per waiter · compare days in Analytics</p>
+            </div>
+          </header>
+          {waiterActivity.length ? (
+            <ol className="waiter-rank">
+              {waiterActivity.map((w, i) => {
+                const top = waiterActivity[0].shaahCups || 1
+                return (
+                  <li key={w.name}>
+                    <span className="waiter-rank__pos">{i + 1}</span>
+                    <div className="waiter-rank__body">
+                      <div className="waiter-rank__row">
+                        <strong>{w.name}</strong>
+                        <span>
+                          <b>{w.shaahCups}</b> shaah
+                        </span>
+                      </div>
+                      <div className="waiter-rank__bar">
+                        <i style={{ width: `${Math.max(4, (w.shaahCups / top) * 100)}%` }} />
+                      </div>
+                      <small>
+                        {w.orders} order{w.orders === 1 ? '' : 's'} · {formatSlshAmount(w.value)}
+                      </small>
+                    </div>
+                  </li>
                 )
               })}
-            </div>
-          </section>
-        )
-      })}
+            </ol>
+          ) : (
+            <p className="loan-empty">Pick a waiter when you sell shaah — their totals show up here.</p>
+          )}
+        </section>
+      </div>
 
       <section className="panel loan-book">
         <header>
@@ -608,16 +922,15 @@ export default function NewEntry() {
           <div>
             <h2>Loan Book</h2>
             <p>
-              First count sold food above. Only those items appear here — then subtract how many
-              were taken as loan (example: sold 20 sandwiches, loan 2).
+              Items sold tonight appear here. Mark how many were taken on loan and by whom
+              (example: sold 20 sandwiches, 2 on loan).
             </p>
           </div>
         </header>
 
         {!soldItems.length ? (
           <p className="loan-empty">
-            Nothing here yet. Add sold counts above first (e.g. Sandwich +20). Items you never count
-            (like Chips) will not show in the Loan Book.
+            Nothing here yet. Complete a sale above first — only sold items can be put on loan.
           </p>
         ) : (
           <div className="loan-sold-list">

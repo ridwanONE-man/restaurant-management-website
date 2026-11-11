@@ -60,6 +60,55 @@ export type ExpenseBreakdown = {
   other: number
 }
 
+/** One line on a POS ticket — price is frozen at the moment of sale */
+export type PosLine = {
+  itemId: string
+  itemName: string
+  category: MenuCategory
+  qty: number
+  unitPrice: number
+}
+
+/** A completed POS sale */
+export type PosOrder = {
+  id: string
+  /** ISO timestamp */
+  at: string
+  /** Display time, e.g. 21:42:08 */
+  time: string
+  lines: PosLine[]
+  total: number
+  /** Waiter who served the order (required when it contains shaah) */
+  waiter?: string | null
+}
+
+export type WaiterStat = {
+  name: string
+  orders: number
+  shaahCups: number
+  items: number
+  value: number
+}
+
+/** Per-waiter activity for a list of orders, busiest first */
+export function waiterStats(orders: PosOrder[] | undefined): WaiterStat[] {
+  const map = new Map<string, WaiterStat>()
+  for (const order of orders ?? []) {
+    const name = order.waiter?.trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    const stat = map.get(key) ?? { name, orders: 0, shaahCups: 0, items: 0, value: 0 }
+    stat.orders += 1
+    for (const line of order.lines) {
+      stat.items += line.qty
+      stat.value += line.qty * line.unitPrice
+      if (line.category === 'shaah') stat.shaahCups += line.qty
+    }
+    map.set(key, stat)
+  }
+  return [...map.values()].sort((a, b) => b.shaahCups - a.shaahCups || b.value - a.value)
+}
+
 export type NightEntry = {
   id: string
   date: string
@@ -84,6 +133,8 @@ export type NightEntry = {
   loans: LoanRecord[]
   /** Optional item breakdown for reports */
   itemSales?: { itemId: string; itemName: string; qty: number; unitPrice: number; value: number }[]
+  /** Every POS sale of the night (with waiter) */
+  orders?: PosOrder[]
   /** SALES = night money saved before expenses; FINALIZED = expenses included */
   status: 'FINALIZED' | 'REVIEW' | 'SALES'
 }

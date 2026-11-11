@@ -5,13 +5,15 @@ import {
   HandCoins,
   PieChart,
   TrendingUp,
+  Users,
   Utensils,
   Wallet,
 } from 'lucide-react'
 import { useAuth } from './auth'
-import { formatSlshAmount, type NightEntry } from './data'
+import { formatSlshAmount, waiterStats, type NightEntry } from './data'
 import LiveClock from './LiveClock'
 import './Analytics.css'
+import './Pos.css'
 
 type RangeKey = '7' | '30' | '90' | 'all'
 
@@ -256,6 +258,28 @@ export default function Analytics() {
     return [...map.values()].sort((a, b) => b.total - a.total).slice(0, 6)
   }, [scoped])
 
+  /** Waiter comparison across the selected range */
+  const waiterBoard = useMemo(() => {
+    const total = waiterStats(scoped.flatMap((row) => row.orders ?? []))
+    const nightsWithOrders = scoped.filter((row) => (row.orders ?? []).some((o) => o.waiter))
+    const days = nightsWithOrders.slice(-7).map((row) => ({
+      id: row.id,
+      label: row.date.replace(/,?\s*\d{4}$/, '').trim(),
+      byWaiter: new Map(waiterStats(row.orders).map((w) => [w.name.toLowerCase(), w.shaahCups])),
+    }))
+    const worked = new Map<string, number>()
+    for (const row of nightsWithOrders) {
+      for (const w of waiterStats(row.orders)) worked.set(w.name.toLowerCase(), (worked.get(w.name.toLowerCase()) ?? 0) + 1)
+    }
+    return {
+      total: total.map((w) => {
+        const nights = worked.get(w.name.toLowerCase()) ?? 0
+        return { ...w, nights, avg: nights ? Math.round((w.shaahCups / nights) * 10) / 10 : 0 }
+      }),
+      days,
+    }
+  }, [scoped])
+
   const maxItemValue = Math.max(...topItems.map((i) => i.value), 1)
 
   return (
@@ -400,6 +424,80 @@ export default function Analytics() {
               )}
             </section>
           </div>
+
+          <section className="panel chart-panel waiter-analytics">
+            <header>
+              <Users size={18} className="accent-green" />
+              <div>
+                <h2>Waiter activity</h2>
+                <p>Shaah served per waiter in this range — compare who is busiest</p>
+              </div>
+            </header>
+            {waiterBoard.total.length ? (
+              <>
+                <ol className="waiter-rank">
+                  {waiterBoard.total.map((w, i) => {
+                    const top = waiterBoard.total[0].shaahCups || 1
+                    return (
+                      <li key={w.name}>
+                        <span className="waiter-rank__pos">{i + 1}</span>
+                        <div className="waiter-rank__body">
+                          <div className="waiter-rank__row">
+                            <strong>{w.name}</strong>
+                            <span>
+                              <b>{w.shaahCups}</b> shaah
+                            </span>
+                          </div>
+                          <div className="waiter-rank__bar">
+                            <i style={{ width: `${Math.max(4, (w.shaahCups / top) * 100)}%` }} />
+                          </div>
+                          <small>
+                            {w.nights} night{w.nights === 1 ? '' : 's'} · {w.avg} per night · {w.orders} orders ·{' '}
+                            {formatSlshAmount(w.value)}
+                          </small>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+
+                {waiterBoard.days.length > 1 ? (
+                  <div className="waiter-days">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Waiter</th>
+                          {waiterBoard.days.map((d) => (
+                            <th key={d.id}>{d.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {waiterBoard.total.map((w) => (
+                          <tr key={w.name}>
+                            <td>{w.name}</td>
+                            {waiterBoard.days.map((d) => {
+                              const cups = d.byWaiter.get(w.name.toLowerCase()) ?? 0
+                              return (
+                                <td key={d.id} className={cups ? 'has-value' : undefined}>
+                                  {cups || '—'}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="chart-empty">
+                No waiter data yet. Pick a waiter when selling shaah on New Entry — nights saved from now on
+                appear here.
+              </p>
+            )}
+          </section>
 
           <section className="panel chart-panel">
             <header>

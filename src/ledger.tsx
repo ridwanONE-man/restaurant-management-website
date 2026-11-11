@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { LoanRecord, NightEntry } from './data'
+import type { LoanRecord, NightEntry, PosOrder } from './data'
 import { supabase, CLIENT_ID } from './lib/supabase'
 import { useRealtimeRefetch } from './lib/realtime'
 import { reportSyncError } from './lib/syncStatus'
@@ -48,6 +48,8 @@ export type NightDraft = {
   loanCovers: number
   loans: LoanRecord[]
   itemSales: NonNullable<NightEntry['itemSales']>
+  /** POS sales of the night; counts and money are derived from these */
+  orders: PosOrder[]
 }
 
 type LedgerContextValue = {
@@ -132,11 +134,12 @@ function normalizeDraft(raw: unknown): NightDraft | null {
     loanCovers: Number(d.loanCovers) || 0,
     loans: Array.isArray(d.loans) ? d.loans : [],
     itemSales: Array.isArray(d.itemSales) ? d.itemSales : [],
+    orders: Array.isArray(d.orders) ? d.orders : [],
   }
 }
 
 function hasContent(d: NightDraft | null) {
-  return Boolean(d && (d.covers > 0 || d.loans.length > 0 || d.totalSales > 0))
+  return Boolean(d && (d.covers > 0 || d.loans.length > 0 || d.totalSales > 0 || d.orders.length > 0))
 }
 
 /** Comparable fingerprint of the working night (ignores labels and empty drafts) */
@@ -152,6 +155,7 @@ function signature(draft: NightDraft | null, expenses: ExpenseState) {
       lc: d.loanCovers,
       loans: d.loans,
       items: d.itemSales,
+      orders: d.orders,
     },
     e: expenses,
   })
@@ -442,6 +446,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       loanCovers: draft?.loanCovers ?? 0,
       loans: draft?.loans ?? [],
       itemSales: draft?.itemSales ?? [],
+      orders: draft?.orders ?? [],
       status: operationalTotal > 0 || expenses.staff.length > 0 ? 'FINALIZED' : 'SALES',
     }
   }, [expenses, nightDraft, operationalTotal])

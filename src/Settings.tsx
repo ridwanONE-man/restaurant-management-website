@@ -16,6 +16,7 @@ import {
   Tags,
   Trash2,
   UserRound,
+  Users,
   UtensilsCrossed,
 } from 'lucide-react'
 import { useAuth } from './auth'
@@ -23,6 +24,7 @@ import { useLedger } from './ledger'
 import { usePricing } from './pricing'
 import { useSettings } from './appSettings'
 import { useTheme, type ThemeMode } from './theme'
+import { useWaiters } from './waiters'
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -39,6 +41,25 @@ export default function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettings()
   const { resetDefaults } = usePricing()
   const { mode: themeMode, setMode: setThemeMode } = useTheme()
+  const { waiters, addWaiter, renameWaiter, removeWaiter } = useWaiters()
+  const [waiterName, setWaiterName] = useState('')
+  const [waiterMsg, setWaiterMsg] = useState('')
+
+  async function onAddWaiter() {
+    const result = await addWaiter(waiterName)
+    if (!result.ok) {
+      setWaiterMsg(result.error)
+      return
+    }
+    setWaiterName('')
+    setWaiterMsg(`${result.waiter.name} added — available on every device.`)
+    window.setTimeout(() => setWaiterMsg(''), 2200)
+  }
+
+  function onRemoveWaiter(id: string, name: string) {
+    if (!confirmAction(`Remove ${name} from the waiter list? Past nights keep their name.`)) return
+    removeWaiter(id)
+  }
   const { resetExpenses, clearNightDraft } = useLedger()
 
   const [kitchenName, setKitchenName] = useState(settings.kitchenName)
@@ -236,6 +257,58 @@ export default function SettingsPage() {
             </button>
             {profileMsg ? <span className="inline-ok">{profileMsg}</span> : null}
           </div>
+        </section>
+
+        <section className="panel waiters-panel">
+          <header>
+            <Users size={18} className="accent-orange" />
+            <div>
+              <h2>Waiters</h2>
+              <p>Picked when selling shaah on New Entry · shared across devices</p>
+            </div>
+          </header>
+          <div className="waiter-manage-add">
+            <input
+              value={waiterName}
+              placeholder="Waiter name"
+              onChange={(e) => setWaiterName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void onAddWaiter()
+                }
+              }}
+            />
+            <button type="button" className="primary-btn" onClick={() => void onAddWaiter()} disabled={!waiterName.trim()}>
+              Add
+            </button>
+          </div>
+          {waiterMsg ? <p className="inline-ok">{waiterMsg}</p> : null}
+          {waiters.length ? (
+            <ul className="waiter-manage-list">
+              {waiters.map((w) => (
+                <li key={w.id}>
+                  <input
+                    defaultValue={w.name}
+                    aria-label={`Rename ${w.name}`}
+                    onBlur={(e) => {
+                      if (e.target.value.trim() && e.target.value.trim() !== w.name) renameWaiter(w.id, e.target.value)
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="danger-outline-btn"
+                    aria-label={`Remove ${w.name}`}
+                    onClick={() => onRemoveWaiter(w.id, w.name)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="settings-hint">No waiters yet. Add names here or straight from the order panel.</p>
+          )}
         </section>
 
         <section className="panel">

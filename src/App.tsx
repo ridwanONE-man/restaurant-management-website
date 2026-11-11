@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth'
 import { PricingProvider } from './pricing'
 import { LedgerProvider } from './ledger'
 import { SettingsProvider } from './appSettings'
+import { WaitersProvider } from './waiters'
 import AppShell from './AppShell'
 import Login from './Login'
 import NewEntry from './NewEntry'
@@ -34,6 +35,7 @@ export default function App() {
       <SettingsProvider>
         <PricingProvider>
           <LedgerProvider>
+            <WaitersProvider>
             <Routes>
               <Route path="/" element={<Login />} />
               <Route
@@ -55,6 +57,7 @@ export default function App() {
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </WaitersProvider>
           </LedgerProvider>
         </PricingProvider>
       </SettingsProvider>

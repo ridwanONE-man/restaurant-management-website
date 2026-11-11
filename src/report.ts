@@ -1,4 +1,4 @@
-import { formatSlshAmount, type NightEntry } from './data'
+import { formatSlshAmount, waiterStats, type NightEntry } from './data'
 
 function escapeCsv(value: string | number) {
   const text = String(value)
@@ -27,6 +27,25 @@ export function buildNightReport(entry: NightEntry) {
     lines.push('Item, Qty, Unit Price (SLSH), Line Total (SLSH)')
     for (const row of entry.itemSales) {
       lines.push(`${row.itemName}, ${row.qty}, ${row.unitPrice}, ${row.value}`)
+    }
+    lines.push('')
+  }
+
+  const waiters = waiterStats(entry.orders)
+  if (waiters.length) {
+    lines.push('=== WAITER ACTIVITY ===')
+    lines.push('Waiter, Shaah cups, Orders, Value (SLSH)')
+    for (const w of waiters) {
+      lines.push(`${w.name}, ${w.shaahCups}, ${w.orders}, ${w.value}`)
+    }
+    lines.push('')
+  }
+
+  if (entry.orders?.length) {
+    lines.push(`=== SALES LOG (${entry.orders.length} orders) ===`)
+    for (const order of [...entry.orders].reverse()) {
+      const items = order.lines.map((l) => `${l.qty}x ${l.itemName}`).join(' + ')
+      lines.push(`${order.time} · ${items} · ${formatSlshAmount(order.total)}${order.waiter ? ` · ${order.waiter}` : ''}`)
     }
     lines.push('')
   }

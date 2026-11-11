@@ -471,3 +471,13 @@
     align-items: stretch;
   }
 }
+
+.tone-cunto .price-card__icon {
+  color: var(--violet);
+  background: rgba(var(--violet-rgb), 0.12);
+}
+
+.tone-shaah .price-card__icon {
+  color: var(--teal);
+  background: rgba(var(--teal-rgb), 0.12);
+}

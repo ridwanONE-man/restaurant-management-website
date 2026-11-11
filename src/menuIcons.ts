@@ -1,7 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Bean,
   Beef,
   CakeSlice,
+  CookingPot,
+  Croissant,
+  EggFried,
+  Hamburger,
+  Milk,
+  Wheat,
   Coffee,
   Cookie,
   CupSoda,
@@ -37,7 +44,15 @@ export const MENU_ICON_OPTIONS: { id: MenuIcon; label: string; Icon: LucideIcon 
   { id: 'drink', label: 'Drink', Icon: GlassWater },
   { id: 'coffee', label: 'Coffee', Icon: Coffee },
   { id: 'dessert', label: 'Sweet', Icon: CakeSlice },
+  { id: 'burger', label: 'Burger', Icon: Hamburger },
   { id: 'star', label: 'Favorite', Icon: Star },
+  { id: 'maize', label: 'Galay', Icon: Wheat },
+  { id: 'tea', label: 'Shaah', Icon: Coffee },
+  { id: 'milk', label: 'Caano', Icon: Milk },
+  { id: 'bread', label: 'Canjeero', Icon: Croissant },
+  { id: 'egg', label: 'Ukun', Icon: EggFried },
+  { id: 'pot', label: 'Maraq', Icon: CookingPot },
+  { id: 'beans', label: 'Digir', Icon: Bean },
 ]
 
 export const MENU_ICONS: Record<MenuIcon, LucideIcon> = Object.fromEntries(

@@ -1004,3 +1004,189 @@
     justify-content: flex-start;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Fast Food / Cuntowadani group tabs
+--------------------------------------------------------------------------- */
+.group-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.35rem;
+}
+
+.group-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.95rem 1.05rem;
+  border-radius: 18px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.group-tab:hover {
+  border-color: var(--line-strong);
+}
+
+.group-tab:active {
+  transform: scale(0.99);
+}
+
+.group-tab__icon {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+}
+
+.group-tab--cuntowadani .group-tab__icon {
+  background: rgba(var(--violet-rgb), 0.14);
+  color: var(--violet);
+}
+
+.group-tab__copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.group-tab__copy strong {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.group-tab__copy em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-tab__stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.group-tab__stats b {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.group-tab__stats small {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.group-tab.is-active {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.14), rgba(var(--accent-rgb), 0.04)), var(--surface);
+}
+
+.group-tab--cuntowadani.is-active {
+  border-color: var(--violet);
+  background: linear-gradient(135deg, rgba(var(--violet-rgb), 0.16), rgba(var(--violet-rgb), 0.04)), var(--surface);
+}
+
+.group-tab.is-active .group-tab__stats b {
+  color: var(--accent);
+}
+
+.group-tab--cuntowadani.is-active .group-tab__stats b {
+  color: var(--violet);
+}
+
+.group-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.group-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* Cuntowadani + Shaah item colours */
+.item-card.tone-cunto {
+  border-color: rgba(var(--violet-rgb), 0.3);
+}
+
+.item-card.tone-shaah {
+  border-color: rgba(var(--teal-rgb), 0.3);
+}
+
+.tone-cunto .item-icon,
+.loan-sold-row.tone-cunto .loan-sold-row__icon {
+  color: var(--violet);
+  background: rgba(var(--violet-rgb), 0.12);
+  border-color: rgba(var(--violet-rgb), 0.24);
+}
+
+.tone-shaah .item-icon,
+.loan-sold-row.tone-shaah .loan-sold-row__icon {
+  color: var(--teal);
+  background: rgba(var(--teal-rgb), 0.12);
+  border-color: rgba(var(--teal-rgb), 0.24);
+}
+
+@media (max-width: 767px) {
+  .group-tabs {
+    gap: 0.55rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .group-tab {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.8rem;
+    border-radius: 16px;
+  }
+
+  .group-tab__icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .group-tab__copy strong {
+    font-size: 0.98rem;
+  }
+
+  .group-tab__copy em {
+    display: none;
+  }
+
+  .group-tab__stats {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
+  .group-tab__stats b {
+    font-size: 1.1rem;
+  }
+}

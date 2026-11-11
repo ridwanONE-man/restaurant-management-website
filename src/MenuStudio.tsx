@@ -10,9 +10,12 @@ import {
 } from 'lucide-react'
 import { usePricing } from './pricing'
 import {
+  MENU_GROUPS,
   MENU_SECTIONS,
+  groupOfCategory,
   formatSlshAmount,
   type MenuCategory,
+  type MenuGroup,
   type MenuIcon,
   type MenuItem,
 } from './data'
@@ -44,16 +47,31 @@ const EMPTY_FORM: FormState = {
   icon: 'star',
 }
 
+/** Icon suggested when a category is picked and no icon was chosen yet */
+const CATEGORY_ICON: Record<MenuCategory, MenuIcon> = {
+  grill: 'sandwich',
+  plates: 'rice',
+  sides: 'chips',
+  juice: 'drink',
+  cunto: 'maize',
+  shaah: 'tea',
+}
+
+type Filter = MenuCategory | MenuGroup | 'all'
+
 export default function MenuStudio() {
   const { menu, addMenuItem, updateMenuItem, removeMenuItem, resetDefaults } = usePricing()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<MenuCategory | 'all'>('all')
+  const [filter, setFilter] = useState<Filter>('all')
   const [error, setError] = useState('')
   const [flash, setFlash] = useState('')
 
   const filtered = useMemo(() => {
     if (filter === 'all') return menu
+    if (filter === 'fastfood' || filter === 'cuntowadani') {
+      return menu.filter((item) => groupOfCategory(item.category) === filter)
+    }
     return menu.filter((item) => item.category === filter)
   }, [filter, menu])
 
@@ -61,6 +79,9 @@ export default function MenuStudio() {
     const map: Record<string, number> = { all: menu.length }
     for (const section of MENU_SECTIONS) {
       map[section.key] = menu.filter((i) => i.category === section.key).length
+    }
+    for (const group of MENU_GROUPS) {
+      map[group.key] = menu.filter((i) => groupOfCategory(i.category) === group.key).length
     }
     return map
   }, [menu])
@@ -225,12 +246,23 @@ export default function MenuStudio() {
             <span>CATEGORY</span>
             <select
               value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as MenuCategory }))}
+              onChange={(e) => {
+                const category = e.target.value as MenuCategory
+                setForm((f) => ({
+                  ...f,
+                  category,
+                  icon: f.icon === 'star' || f.icon === CATEGORY_ICON[f.category] ? CATEGORY_ICON[category] : f.icon,
+                }))
+              }}
             >
-              {MENU_SECTIONS.map((section) => (
-                <option key={section.key} value={section.key}>
-                  {section.title}
-                </option>
+              {MENU_GROUPS.map((group) => (
+                <optgroup key={group.key} label={group.title}>
+                  {MENU_SECTIONS.filter((section) => section.group === group.key).map((section) => (
+                    <option key={section.key} value={section.key}>
+                      {section.title}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -275,15 +307,26 @@ export default function MenuStudio() {
         >
           All <b>{countsByCategory.all}</b>
         </button>
-        {MENU_SECTIONS.map((section) => (
-          <button
-            key={section.key}
-            type="button"
-            className={filter === section.key ? 'active' : undefined}
-            onClick={() => setFilter(section.key)}
-          >
-            {section.title} <b>{countsByCategory[section.key] ?? 0}</b>
-          </button>
+        {MENU_GROUPS.map((group) => (
+          <span key={group.key} className="menu-filters__group">
+            <button
+              type="button"
+              className={`menu-filters__group-btn ${filter === group.key ? 'active' : ''}`}
+              onClick={() => setFilter(group.key)}
+            >
+              {group.title} <b>{countsByCategory[group.key] ?? 0}</b>
+            </button>
+            {MENU_SECTIONS.filter((section) => section.group === group.key).map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                className={filter === section.key ? 'active' : undefined}
+                onClick={() => setFilter(section.key)}
+              >
+                {section.title} <b>{countsByCategory[section.key] ?? 0}</b>
+              </button>
+            ))}
+          </span>
         ))}
       </div>
 
@@ -302,7 +345,10 @@ export default function MenuStudio() {
                   <Icon size={22} />
                 </div>
                 <div className="menu-card__body">
-                  <span className="menu-card__cat">{section?.title ?? item.category}</span>
+                  <span className="menu-card__cat">
+                    {MENU_GROUPS.find((g) => g.key === section?.group)?.title ?? 'Fast Food'} ·{' '}
+                    {section?.title ?? item.category}
+                  </span>
                   <h3>{item.name}</h3>
                   <strong>{formatSlshAmount(item.price)}</strong>
                 </div>

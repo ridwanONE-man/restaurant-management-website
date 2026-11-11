@@ -11,15 +11,20 @@ import {
   UserRound,
   Phone,
   Wallet,
+  Coffee,
+  UtensilsCrossed,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from './auth'
 import { usePricing } from './pricing'
 import { useLedger } from './ledger'
 import {
+  MENU_GROUPS,
   MENU_SECTIONS,
+  groupOfCategory,
   formatSlshAmount,
   type LoanRecord,
+  type MenuGroup,
   type MenuItem,
   type NightEntry,
 } from './data'
@@ -46,6 +51,16 @@ function autoSaveSig(counts: Record<string, number>, loans: LoanRecord[], expens
     .filter(([, qty]) => qty > 0)
     .sort(([a], [b]) => a.localeCompare(b))
   return JSON.stringify({ sold, loans, expenses })
+}
+
+const GROUP_KEY = 'cff-entry-group'
+
+function loadGroup(): MenuGroup {
+  try {
+    return localStorage.getItem(GROUP_KEY) === 'cuntowadani' ? 'cuntowadani' : 'fastfood'
+  } catch {
+    return 'fastfood'
+  }
 }
 
 function timeNowLabel() {
@@ -79,6 +94,16 @@ export default function NewEntry() {
   const [savedFlash, setSavedFlash] = useState(false)
   const [autoSavedFlash, setAutoSavedFlash] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [activeGroup, setActiveGroup] = useState<MenuGroup>(loadGroup)
+
+  function pickGroup(group: MenuGroup) {
+    setActiveGroup(group)
+    try {
+      localStorage.setItem(GROUP_KEY, group)
+    } catch {
+      /* optional */
+    }
+  }
 
   /** Keep counts aligned when menu items are added or removed */
   useEffect(() => {
@@ -244,6 +269,22 @@ export default function NewEntry() {
     saveNight,
     setNightDraft,
   ])
+
+  /** Sold count + money per top-level group, shown on the tabs */
+  const groupTotals = useMemo(() => {
+    const totals: Record<MenuGroup, { items: number; qty: number; value: number }> = {
+      fastfood: { items: 0, qty: 0, value: 0 },
+      cuntowadani: { items: 0, qty: 0, value: 0 },
+    }
+    for (const item of menu) {
+      const t = totals[groupOfCategory(item.category)]
+      const qty = counts[item.id] ?? 0
+      t.items += 1
+      t.qty += qty
+      t.value += qty * item.price
+    }
+    return totals
+  }, [counts, menu])
 
   const loansByPerson = useMemo(() => {
     const map = new Map<string, { name: string; phone: string; total: number; lines: LoanRecord[] }>()
@@ -448,7 +489,47 @@ export default function NewEntry() {
         </p>
       ) : null}
 
-      {MENU_SECTIONS.map((section) => {
+      <div className="group-tabs" role="tablist" aria-label="Menu group">
+        {MENU_GROUPS.map((group) => {
+          const t = groupTotals[group.key]
+          const active = activeGroup === group.key
+          return (
+            <button
+              key={group.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`group-tab group-tab--${group.key} ${active ? 'is-active' : ''}`}
+              onClick={() => pickGroup(group.key)}
+            >
+              <span className="group-tab__icon" aria-hidden>
+                {group.key === 'fastfood' ? <UtensilsCrossed size={20} /> : <Coffee size={20} />}
+              </span>
+              <span className="group-tab__copy">
+                <strong>{group.title}</strong>
+                <em>{group.hint}</em>
+              </span>
+              <span className="group-tab__stats">
+                <b>{t.qty}</b>
+                <small>{formatSlshAmount(t.value)}</small>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {groupTotals[activeGroup].items === 0 ? (
+        <section className="panel group-empty">
+          <p>
+            No {MENU_GROUPS.find((g) => g.key === activeGroup)?.title} items yet.
+          </p>
+          <Link to="/app/menu" className="expenses-link-btn">
+            <Plus size={16} /> Add items in Menu Studio
+          </Link>
+        </section>
+      ) : null}
+
+      {MENU_SECTIONS.filter((section) => section.group === activeGroup).map((section) => {
         const items = menu.filter((item) => item.category === section.key)
         if (!items.length) return null
         return (

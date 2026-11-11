@@ -31,6 +31,10 @@
   --info-strong: #3d8bff;
   --info-soft: #b3d1ff;
   --info-rgb: 106, 168, 255;
+  --violet: #c49bff;
+  --violet-rgb: 196, 155, 255;
+  --teal: #3dd6c3;
+  --teal-rgb: 61, 214, 195;
 
   /* Surfaces (warm neutrals) */
   --bg: #0f0d0c;
@@ -104,6 +108,10 @@
   --info-strong: #1d4ed8;
   --info-soft: #1e40af;
   --info-rgb: 37, 99, 235;
+  --violet: #8b3fd9;
+  --violet-rgb: 139, 63, 217;
+  --teal: #0f8a7e;
+  --teal-rgb: 15, 138, 126;
 
   --bg: #f6f3ef;
   --bg-2: #f6f3ef;

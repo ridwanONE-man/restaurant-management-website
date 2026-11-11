@@ -503,3 +503,32 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Fast Food / Cuntowadani filter groups */
+.menu-filters__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+}
+
+.menu-filters button.menu-filters__group-btn {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.menu-card--cunto .menu-card__icon,
+.menu-card--shaah .menu-card__icon {
+  background: rgba(var(--accent-2-rgb), 0.14);
+  color: var(--accent-2);
+}
+
+@media (max-width: 767px) {
+  .menu-filters__group {
+    border-radius: 16px;
+    width: 100%;
+  }
+}

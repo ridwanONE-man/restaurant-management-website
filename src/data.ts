@@ -1,4 +1,7 @@
-export type MenuCategory = 'grill' | 'plates' | 'sides' | 'juice'
+export type MenuCategory = 'grill' | 'plates' | 'sides' | 'juice' | 'cunto' | 'shaah'
+
+/** Top-level groups shown side by side on New Entry */
+export type MenuGroup = 'fastfood' | 'cuntowadani'
 
 export type MenuIcon =
   | 'sandwich'
@@ -19,6 +22,14 @@ export type MenuIcon =
   | 'dessert'
   | 'drink'
   | 'star'
+  | 'maize'
+  | 'tea'
+  | 'milk'
+  | 'bread'
+  | 'egg'
+  | 'pot'
+  | 'beans'
+  | 'burger'
 
 export type MenuItem = {
   id: string
@@ -89,18 +100,31 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: 'strawberry', name: 'Strawberry Juice', price: 16_500, category: 'juice', icon: 'strawberry' },
   { id: 'banana', name: 'Banana Juice', price: 11_000, category: 'juice', icon: 'banana' },
   { id: 'mushakal', name: 'Mushakal Juice', price: 15_400, category: 'juice', icon: 'mushakal' },
+  { id: 'galay-caano-leh', name: 'Galay Caano Leh', price: 0, category: 'cunto', icon: 'maize' },
+  { id: 'shaah', name: 'Shaah', price: 0, category: 'shaah', icon: 'tea' },
 ]
 
 export const DEFAULT_PRICES: Record<string, number> = Object.fromEntries(
   MENU_ITEMS.map((item) => [item.id, item.price]),
 )
 
-export const MENU_SECTIONS: { key: MenuCategory; title: string; hint: string }[] = [
-  { key: 'grill', title: 'Grill Favorites', hint: 'Sandwiches & shawarma' },
-  { key: 'plates', title: 'Rice Plates', hint: 'Half & chicken plates' },
-  { key: 'sides', title: 'Sides', hint: 'Crispy extras' },
-  { key: 'juice', title: 'Fresh Juices', hint: 'Cold pressed blends' },
+export const MENU_GROUPS: { key: MenuGroup; title: string; hint: string }[] = [
+  { key: 'fastfood', title: 'Fast Food', hint: 'Grill, plates, sides & fresh juices' },
+  { key: 'cuntowadani', title: 'Cuntowadani', hint: 'Traditional food & shaah' },
 ]
+
+export const MENU_SECTIONS: { key: MenuCategory; group: MenuGroup; title: string; hint: string }[] = [
+  { key: 'grill', group: 'fastfood', title: 'Grill Favorites', hint: 'Sandwiches & shawarma' },
+  { key: 'plates', group: 'fastfood', title: 'Rice Plates', hint: 'Half & chicken plates' },
+  { key: 'sides', group: 'fastfood', title: 'Sides', hint: 'Crispy extras' },
+  { key: 'juice', group: 'fastfood', title: 'Fresh Juices', hint: 'Cold pressed blends' },
+  { key: 'cunto', group: 'cuntowadani', title: 'Cunto (Food)', hint: 'Galay caano leh & traditional dishes' },
+  { key: 'shaah', group: 'cuntowadani', title: 'Shaah (Tea)', hint: 'Shaah & hot drinks' },
+]
+
+export function groupOfCategory(category: MenuCategory): MenuGroup {
+  return MENU_SECTIONS.find((s) => s.key === category)?.group ?? 'fastfood'
+}
 
 
 export function formatSlshAmount(slsh: number, opts?: { signed?: boolean }) {

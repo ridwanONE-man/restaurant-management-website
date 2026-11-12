@@ -44,6 +44,7 @@ import LiveClock, { formatDayLabel, formatEntryDate } from './LiveClock'
 import { downloadNightReport } from './report'
 import './NewEntry.css'
 import './Pos.css'
+import './Dashboard.css'
 
 function emptyCounts(menu: MenuItem[]) {
   return Object.fromEntries(menu.map((item) => [item.id, 0])) as Record<string, number>
@@ -100,24 +101,13 @@ function newOrderId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-const GROUP_KEY = 'cff-entry-group'
-
-function loadGroup(): MenuGroup {
-  try {
-    const saved = localStorage.getItem(GROUP_KEY)
-    return saved === 'cuntowadani' || saved === 'shaah' ? saved : 'fastfood'
-  } catch {
-    return 'fastfood'
-  }
-}
-
 function timeNowLabel() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
 export default function NewEntry() {
-  const { saveNight } = useAuth()
+  const { saveNight, history } = useAuth()
   const { menu } = usePricing()
   const {
     setNightDraft,
@@ -153,14 +143,18 @@ export default function NewEntry() {
   const [savedFlash, setSavedFlash] = useState(false)
   const [autoSavedFlash, setAutoSavedFlash] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [activeGroup, setActiveGroup] = useState<MenuGroup>(loadGroup)
+  /** Which box is open — nothing until a box is tapped */
+  const [activeGroup, setActiveGroup] = useState<MenuGroup | null>(null)
+  const spaceRef = useRef<HTMLElement | null>(null)
 
   function pickGroup(group: MenuGroup) {
-    setActiveGroup(group)
-    try {
-      localStorage.setItem(GROUP_KEY, group)
-    } catch {
-      /* optional */
+    const next = activeGroup === group ? null : group
+    setActiveGroup(next)
+    if (next) {
+      window.setTimeout(() => {
+        const el = spaceRef.current
+        if (el && window.innerWidth < 1100) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 60)
     }
   }
 
@@ -334,6 +328,62 @@ export default function NewEntry() {
     }
     return totals
   }, [liveOrders, menu])
+
+  /* ------------------------------------------------------------ dashboard */
+  const returnedCount = orders.length - liveOrders.length
+
+  /** Average of recent saved nights, to compare tonight against */
+  const recentAvgSales = useMemo(() => {
+    const past = history.filter((h) => h.id !== nightIdRef.current && h.totalSales > 0).slice(0, 7)
+    return past.length ? Math.round(past.reduce((s, h) => s + h.totalSales, 0) / past.length) : 0
+  }, [history])
+
+  /** Sales per hour tonight (receipts with a real time only) */
+  const hourly = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const order of liveOrders) {
+      if (order.time === 'Earlier') continue
+      const h = new Date(order.at).getHours()
+      map.set(h, (map.get(h) ?? 0) + order.total)
+    }
+    if (!map.size) return []
+    const hours = [...map.keys()]
+    const from = Math.min(...hours)
+    const to = Math.max(...hours)
+    const start = Math.max(from, to - 11)
+    const rows = []
+    for (let h = start; h <= to; h += 1) rows.push({ hour: h, value: map.get(h) ?? 0 })
+    return rows
+  }, [liveOrders])
+  const hourlyMax = Math.max(1, ...hourly.map((r) => r.value))
+
+  /** Per-box detail: receipts, top items */
+  const groupDetail = useMemo(() => {
+    const detail: Record<MenuGroup, { receipts: number; top: { name: string; qty: number; value: number }[] }> = {
+      fastfood: { receipts: 0, top: [] },
+      cuntowadani: { receipts: 0, top: [] },
+      shaah: { receipts: 0, top: [] },
+    }
+    const tops: Record<MenuGroup, Map<string, { name: string; qty: number; value: number }>> = {
+      fastfood: new Map(),
+      cuntowadani: new Map(),
+      shaah: new Map(),
+    }
+    for (const order of liveOrders) {
+      const seen = new Set<MenuGroup>()
+      for (const line of order.lines) {
+        const g = groupOfCategory(line.category)
+        seen.add(g)
+        const cur = tops[g].get(line.itemId) ?? { name: line.itemName, qty: 0, value: 0 }
+        cur.qty += line.qty
+        cur.value += line.qty * line.unitPrice
+        tops[g].set(line.itemId, cur)
+      }
+      for (const g of seen) detail[g].receipts += 1
+    }
+    for (const g of MENU_GROUPS) detail[g.key].top = [...tops[g.key].values()].sort((a, b) => b.qty - a.qty).slice(0, 4)
+    return detail
+  }, [liveOrders])
 
   /* ------------------------------------------------------------------ POS */
   const ticketLines = useMemo(
@@ -635,98 +685,272 @@ export default function NewEntry() {
 
       <div className="pos-layout">
         <div className="pos-menu">
-          <div className="group-tabs" role="tablist" aria-label="Menu group">
+          {/* ---------------- tonight's dashboard ---------------- */}
+          <section className="dash" aria-label="Tonight's dashboard">
+            <div className="dash-kpis">
+              <article className="dash-kpi dash-kpi--sales">
+                <span>Sales tonight</span>
+                <strong>{formatSlshAmount(grossSlsh)}</strong>
+                <em>
+                  {liveOrders.length} receipt{liveOrders.length === 1 ? '' : 's'}
+                  {recentAvgSales
+                    ? ` · ${grossSlsh >= recentAvgSales ? '▲' : '▼'} avg ${formatSlshAmount(recentAvgSales)}`
+                    : ''}
+                </em>
+              </article>
+              <article className="dash-kpi dash-kpi--cash">
+                <span>Cash collected</span>
+                <strong>{formatSlshAmount(cashSlsh)}</strong>
+                <em>{grossSlsh ? Math.round((cashSlsh / grossSlsh) * 100) : 0}% of sales</em>
+              </article>
+              <article className="dash-kpi dash-kpi--loan">
+                <span>On loan</span>
+                <strong>{formatSlshAmount(loanSlsh)}</strong>
+                <em>
+                  {loanCovers} item{loanCovers === 1 ? '' : 's'} · {loansByPerson.length} people
+                </em>
+              </article>
+              <article className="dash-kpi dash-kpi--expense">
+                <span>Expenses</span>
+                <strong>{formatSlshAmount(operationalTotal)}</strong>
+                <em>
+                  <Link to="/app/expenses">Open Expenses</Link>
+                </em>
+              </article>
+              <article className={`dash-kpi dash-kpi--net ${finalRemaining < 0 ? 'is-neg' : ''}`}>
+                <span>Net remaining</span>
+                <strong>{formatSlshAmount(finalRemaining)}</strong>
+                <em>
+                  {returnedCount ? `${returnedCount} returned · ` : ''}
+                  <Link to="/app/receipts">Receipts</Link>
+                </em>
+              </article>
+            </div>
+
+            <div className="dash-hours panel">
+              <header>
+                <ChartColumn size={16} className="accent-green" />
+                <h2>Sales by hour</h2>
+                <small>{hourly.length ? `${hourly.length} hour${hourly.length === 1 ? '' : 's'}` : 'tonight'}</small>
+              </header>
+              {hourly.length ? (
+                <div className="dash-hours__plot">
+                  {hourly.map((r) => (
+                    <div key={r.hour} className="dash-hours__col" title={`${r.hour}:00 · ${formatSlshAmount(r.value)}`}>
+                      <i style={{ height: `${Math.max(r.value ? 6 : 2, (r.value / hourlyMax) * 100)}%` }} />
+                      <span>{String(r.hour).padStart(2, '0')}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="dash-hours__empty">The chart fills in as you complete sales.</p>
+              )}
+            </div>
+          </section>
+
+          {/* ---------------- the three boxes ---------------- */}
+          <div className="group-boxes" role="tablist" aria-label="Menu group">
             {MENU_GROUPS.map((group) => {
               const t = groupTotals[group.key]
               const active = activeGroup === group.key
+              const share = grossSlsh ? Math.round((t.value / grossSlsh) * 100) : 0
               return (
                 <button
                   key={group.key}
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`group-tab group-tab--${group.key} ${active ? 'is-active' : ''}`}
+                  aria-expanded={active}
+                  className={`group-box group-box--${group.key} ${active ? 'is-active' : ''}`}
                   onClick={() => pickGroup(group.key)}
                 >
-                  <span className="group-tab__icon" aria-hidden>
-                    {group.key === 'fastfood' ? (
-                      <UtensilsCrossed size={20} />
-                    ) : group.key === 'cuntowadani' ? (
-                      <Wheat size={20} />
-                    ) : (
-                      <Coffee size={20} />
-                    )}
+                  <span className="group-box__top">
+                    <span className="group-box__icon" aria-hidden>
+                      {group.key === 'fastfood' ? (
+                        <UtensilsCrossed size={22} />
+                      ) : group.key === 'cuntowadani' ? (
+                        <Wheat size={22} />
+                      ) : (
+                        <Coffee size={22} />
+                      )}
+                    </span>
+                    <ChevronUp size={18} className="group-box__chev" aria-hidden />
                   </span>
-                  <span className="group-tab__copy">
-                    <strong>{group.title}</strong>
-                    <em>{group.hint}</em>
+                  <strong className="group-box__title">{group.title}</strong>
+                  <span className="group-box__hint">{group.hint}</span>
+                  <span className="group-box__qty">
+                    <b>{t.qty}</b> {group.key === 'shaah' ? 'cups' : 'sold'}
                   </span>
-                  <span className="group-tab__stats">
-                    <b>{t.qty}</b>
-                    <small>{formatSlshAmount(t.value)}</small>
+                  <span className="group-box__value">{formatSlshAmount(t.value)}</span>
+                  <span className="group-box__bar" aria-label={`${share}% of tonight's sales`}>
+                    <i style={{ width: `${share}%` }} />
+                  </span>
+                  <span className="group-box__cta">
+                    <span className="ha-long">{active ? 'Close' : 'Open'} · </span>
+                    {share}%<span className="ha-long"> of sales</span>
                   </span>
                 </button>
               )
             })}
           </div>
 
-          {groupTotals[activeGroup].items === 0 ? (
-            <section className="panel group-empty">
-              <p>No {MENU_GROUPS.find((g) => g.key === activeGroup)?.title} items yet.</p>
-              <Link to="/app/menu" className="expenses-link-btn">
-                <Plus size={16} /> Add items in Menu Studio
-              </Link>
-            </section>
-          ) : null}
+          {/* ---------------- the opened box ---------------- */}
+          {activeGroup ? (
+            <section
+              ref={spaceRef}
+              className={`group-space group-space--${activeGroup}`}
+              aria-label={MENU_GROUPS.find((g) => g.key === activeGroup)?.title}
+            >
+              <header className="group-space__head">
+                <div>
+                  <p>OPEN BOX</p>
+                  <h2>{MENU_GROUPS.find((g) => g.key === activeGroup)?.title}</h2>
+                </div>
+                <button type="button" className="group-space__close" onClick={() => setActiveGroup(null)}>
+                  <X size={16} /> Close
+                </button>
+              </header>
 
-          {MENU_SECTIONS.filter((section) => section.group === activeGroup).map((section) => {
-            const items = menu.filter((item) => item.category === section.key)
-            if (!items.length) return null
-            return (
-              <section key={section.key} className={`menu-section menu-section--${section.key}`}>
-                <div className="menu-section__head">
-                  <div>
-                    <h2>{section.title}</h2>
-                    <p>{section.hint} · tap to add to the order</p>
-                  </div>
+              <div className="group-space__stats">
+                <div>
+                  <small>{activeGroup === 'shaah' ? 'Cups' : 'Sold'}</small>
+                  <b>{groupTotals[activeGroup].qty}</b>
                 </div>
-                <div className="item-grid pos-grid">
-                  {items.map((item) => {
-                    const Icon = getMenuIcon(item.icon)
-                    const sold = counts[item.id] ?? 0
-                    const loanQty = loanQtyByItem[item.id] ?? 0
-                    const inTicket = ticket[item.id] ?? 0
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`item-card pos-tile tone-${item.category} ${inTicket ? 'is-in-ticket' : ''}`}
-                        onClick={() => addToTicket(item)}
-                        aria-label={`Add ${item.name} to order`}
-                      >
-                        {inTicket ? <span className="pos-tile__badge">{inTicket}</span> : null}
-                        <span className="item-card__meta">
-                          <span className="item-icon">
-                            <Icon size={20} />
-                          </span>
-                          <span className="item-copy">
-                            <span className="pos-tile__name">{item.name}</span>
-                            <span className="price-slsh-main">{item.price.toLocaleString()} SLSH</span>
-                          </span>
-                        </span>
-                        <span className="pos-tile__foot">
-                          <span>
-                            Sold tonight <b>{sold}</b>
-                          </span>
-                          {loanQty ? <em>{loanQty} loan</em> : null}
-                        </span>
-                      </button>
-                    )
-                  })}
+                <div>
+                  <small>Money</small>
+                  <b>{formatSlshAmount(groupTotals[activeGroup].value)}</b>
                 </div>
-              </section>
-            )
-          })}
+                <div>
+                  <small>Receipts</small>
+                  <b>{groupDetail[activeGroup].receipts}</b>
+                </div>
+                <div>
+                  {activeGroup === 'shaah' ? (
+                    <>
+                      <small>Waiters</small>
+                      <b>{waiterActivity.length}</b>
+                    </>
+                  ) : (
+                    <>
+                      <small>Share</small>
+                      <b>{grossSlsh ? Math.round((groupTotals[activeGroup].value / grossSlsh) * 100) : 0}%</b>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {groupDetail[activeGroup].top.length ? (
+                <div className="group-space__top">
+                  <span>Top tonight</span>
+                  {groupDetail[activeGroup].top.map((item, i) => (
+                    <em key={item.name}>
+                      <b>{i + 1}</b> {item.name} × {item.qty}
+                    </em>
+                  ))}
+                </div>
+              ) : null}
+
+              {groupTotals[activeGroup].items === 0 ? (
+                <div className="group-empty">
+                  <p>No {MENU_GROUPS.find((g) => g.key === activeGroup)?.title} items yet.</p>
+                  <Link to="/app/menu" className="expenses-link-btn">
+                    <Plus size={16} /> Add items in Menu Studio
+                  </Link>
+                </div>
+              ) : null}
+
+              {MENU_SECTIONS.filter((section) => section.group === activeGroup).map((section) => {
+                const items = menu.filter((item) => item.category === section.key)
+                if (!items.length) return null
+                return (
+                  <section key={section.key} className={`menu-section menu-section--${section.key}`}>
+                    <div className="menu-section__head">
+                      <div>
+                        <h2>{section.title}</h2>
+                        <p>{section.hint} · tap to add to the order</p>
+                      </div>
+                    </div>
+                    <div className="item-grid pos-grid">
+                      {items.map((item) => {
+                        const Icon = getMenuIcon(item.icon)
+                        const sold = counts[item.id] ?? 0
+                        const loanQty = loanQtyByItem[item.id] ?? 0
+                        const inTicket = ticket[item.id] ?? 0
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`item-card pos-tile tone-${item.category} ${inTicket ? 'is-in-ticket' : ''}`}
+                            onClick={() => addToTicket(item)}
+                            aria-label={`Add ${item.name} to order`}
+                          >
+                            {inTicket ? <span className="pos-tile__badge">{inTicket}</span> : null}
+                            <span className="item-card__meta">
+                              <span className="item-icon">
+                                <Icon size={20} />
+                              </span>
+                              <span className="item-copy">
+                                <span className="pos-tile__name">{item.name}</span>
+                                <span className="price-slsh-main">{item.price.toLocaleString()} SLSH</span>
+                              </span>
+                            </span>
+                            <span className="pos-tile__foot">
+                              <span>
+                                Sold tonight <b>{sold}</b>
+                              </span>
+                              {loanQty ? <em>{loanQty} loan</em> : null}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )
+              })}
+
+              {activeGroup === 'shaah' ? (
+                <section className="panel waiter-panel">
+                  <header>
+                    <Users size={18} className="accent-orange" />
+                    <div>
+                      <h2>Tea waiters</h2>
+                      <p>Shaah served tonight per waiter · compare days in Analytics</p>
+                    </div>
+                  </header>
+                  {waiterActivity.length ? (
+                    <ol className="waiter-rank">
+                      {waiterActivity.map((w, i) => {
+                        const top = waiterActivity[0].shaahCups || 1
+                        return (
+                          <li key={w.name}>
+                            <span className="waiter-rank__pos">{i + 1}</span>
+                            <div className="waiter-rank__body">
+                              <div className="waiter-rank__row">
+                                <strong>{w.name}</strong>
+                                <span>
+                                  <b>{w.shaahCups}</b> cups
+                                </span>
+                              </div>
+                              <div className="waiter-rank__bar">
+                                <i style={{ width: `${Math.max(4, (w.shaahCups / top) * 100)}%` }} />
+                              </div>
+                              <small>
+                                {w.orders} order{w.orders === 1 ? '' : 's'} · {formatSlshAmount(w.value)}
+                              </small>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  ) : (
+                    <p className="loan-empty">Pick a waiter when you sell shaah — their totals show up here.</p>
+                  )}
+                </section>
+              ) : null}
+            </section>
+          ) : (
+            <p className="group-hint">Tap Fast Food, Cuntowadani or Shaah to open its menu and start selling.</p>
+          )}
         </div>
 
         <aside className={`pos-ticket ${ticketOpen ? 'is-open' : ''} ${ticketQty ? 'has-items' : ''}`} aria-label="Current order">
@@ -843,7 +1067,7 @@ export default function NewEntry() {
 
       {saleFlash ? <p className="entry-save-ok pos-flash">{saleFlash}</p> : null}
 
-      <div className="pos-insights">
+      <div className="pos-insights pos-insights--single">
         <section className="panel pos-orders">
           <header>
             <Receipt size={18} className="accent-green" />
@@ -903,43 +1127,6 @@ export default function NewEntry() {
           ) : null}
         </section>
 
-        <section className="panel waiter-panel">
-          <header>
-            <Users size={18} className="accent-orange" />
-            <div>
-              <h2>Waiter activity</h2>
-              <p>Shaah served tonight per waiter · compare days in Analytics</p>
-            </div>
-          </header>
-          {waiterActivity.length ? (
-            <ol className="waiter-rank">
-              {waiterActivity.map((w, i) => {
-                const top = waiterActivity[0].shaahCups || 1
-                return (
-                  <li key={w.name}>
-                    <span className="waiter-rank__pos">{i + 1}</span>
-                    <div className="waiter-rank__body">
-                      <div className="waiter-rank__row">
-                        <strong>{w.name}</strong>
-                        <span>
-                          <b>{w.shaahCups}</b> shaah
-                        </span>
-                      </div>
-                      <div className="waiter-rank__bar">
-                        <i style={{ width: `${Math.max(4, (w.shaahCups / top) * 100)}%` }} />
-                      </div>
-                      <small>
-                        {w.orders} order{w.orders === 1 ? '' : 's'} · {formatSlshAmount(w.value)}
-                      </small>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          ) : (
-            <p className="loan-empty">Pick a waiter when you sell shaah — their totals show up here.</p>
-          )}
-        </section>
       </div>
 
       <section className="panel loan-book">

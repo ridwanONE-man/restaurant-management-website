@@ -6,6 +6,7 @@ import {
   LayoutList,
   LogOut,
   Menu,
+  ReceiptText,
   Settings,
   Tags,
   UserRound,
@@ -20,6 +21,7 @@ import './AppShell.css'
 
 const NAV = [
   { to: '/app/entry', label: 'New Entry', short: 'Entry', icon: LayoutList },
+  { to: '/app/receipts', label: 'Receipts', short: 'Receipts', icon: ReceiptText },
   { to: '/app/expenses', label: 'Expenses', short: 'Expenses', icon: Wallet },
   { to: '/app/history', label: 'History', short: 'History', icon: Clock3 },
   { to: '/app/menu', label: 'Menu Studio', short: 'Menu', icon: UtensilsCrossed },

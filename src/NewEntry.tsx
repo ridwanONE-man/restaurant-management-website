@@ -38,6 +38,7 @@ import {
   waiterStats,
 } from './data'
 import { useWaiters } from './waiters'
+import { activeOrders, itemSalesFrom, loanConflict, nextReceiptNo, receiptNo } from './lib/pos'
 import { getMenuIcon } from './menuIcons'
 import LiveClock, { formatDayLabel, formatEntryDate } from './LiveClock'
 import { downloadNightReport } from './report'
@@ -80,7 +81,7 @@ function ordersFromDraft(menu: MenuItem[], draft: DraftLike): PosOrder[] {
 
 function countsFromOrders(menu: MenuItem[], orders: PosOrder[]) {
   const base = emptyCounts(menu)
-  for (const order of orders) {
+  for (const order of activeOrders(orders)) {
     for (const line of order.lines) base[line.itemId] = (base[line.itemId] ?? 0) + line.qty
   }
   return base
@@ -88,7 +89,11 @@ function countsFromOrders(menu: MenuItem[], orders: PosOrder[]) {
 
 /** Fingerprint of what auto-save would write — skips saves for changes that came from another device */
 function autoSaveSig(orders: PosOrder[], loans: LoanRecord[], expenses: unknown) {
-  return JSON.stringify({ orders: orders.map((o) => [o.id, o.total, o.waiter ?? '']), loans, expenses })
+  return JSON.stringify({
+    orders: orders.map((o) => [o.id, o.total, o.waiter ?? '', o.returned ? 1 : 0]),
+    loans,
+    expenses,
+  })
 }
 
 function newOrderId() {
@@ -182,7 +187,8 @@ export default function NewEntry() {
   }, [loanRecords, menu])
 
   /** Money uses the price at the moment of each sale */
-  const grossSlsh = useMemo(() => orders.reduce((sum, order) => sum + order.total, 0), [orders])
+  const liveOrders = useMemo(() => activeOrders(orders), [orders])
+  const grossSlsh = useMemo(() => liveOrders.reduce((sum, order) => sum + order.total, 0), [liveOrders])
 
   const loanSlsh = useMemo(
     () => loanRecords.reduce((sum, loan) => sum + loan.value, 0),
@@ -194,19 +200,7 @@ export default function NewEntry() {
   const loanCovers = loanRecords.reduce((a, b) => a + b.qty, 0)
   const paidCovers = covers - loanCovers
 
-  const itemSales = useMemo(() => {
-    const map = new Map<string, { itemId: string; itemName: string; qty: number; unitPrice: number; value: number }>()
-    for (const order of orders) {
-      for (const line of order.lines) {
-        const row = map.get(line.itemId) ?? { itemId: line.itemId, itemName: line.itemName, qty: 0, unitPrice: 0, value: 0 }
-        row.qty += line.qty
-        row.value += line.qty * line.unitPrice
-        row.unitPrice = row.qty ? Math.round(row.value / row.qty) : line.unitPrice
-        map.set(line.itemId, row)
-      }
-    }
-    return [...map.values()].filter((row) => row.qty > 0)
-  }, [orders])
+  const itemSales = useMemo(() => itemSalesFrom(orders), [orders])
 
   useEffect(() => {
     setNightDraft({
@@ -331,7 +325,7 @@ export default function NewEntry() {
       shaah: { items: 0, qty: 0, value: 0 },
     }
     for (const item of menu) totals[groupOfCategory(item.category)].items += 1
-    for (const order of orders) {
+    for (const order of liveOrders) {
       for (const line of order.lines) {
         const t = totals[groupOfCategory(line.category)]
         t.qty += line.qty
@@ -339,7 +333,7 @@ export default function NewEntry() {
       }
     }
     return totals
-  }, [orders, menu])
+  }, [liveOrders, menu])
 
   /* ------------------------------------------------------------------ POS */
   const ticketLines = useMemo(
@@ -389,6 +383,7 @@ export default function NewEntry() {
     }
     const order: PosOrder = {
       id: newOrderId(),
+      no: nextReceiptNo(orders),
       at: new Date().toISOString(),
       time: timeNowLabel(),
       lines: ticketLines.map(({ item, qty }) => ({
@@ -410,18 +405,18 @@ export default function NewEntry() {
   }
 
   function voidOrder(order: PosOrder) {
-    // cancelling must not leave fewer sold items than are on loan
-    const after = countsFromOrders(
-      menu,
-      orders.filter((o) => o.id !== order.id),
+    const next = orders.map((o) =>
+      o.id === order.id
+        ? { ...o, returned: { at: new Date().toISOString(), time: timeNowLabel(), reason: 'Returned from New Entry' } }
+        : o,
     )
-    const blocked = order.lines.find((line) => (after[line.itemId] ?? 0) < (loanQtyByItem[line.itemId] ?? 0))
+    const blocked = loanConflict(next, loanRecords)
     if (blocked) {
-      setLoanError(`Remove the ${blocked.itemName} loans first — this sale is needed to cover them.`)
+      setLoanError(`Remove the ${blocked} loans first — this sale is needed to cover them.`)
       return
     }
-    if (!window.confirm(`Cancel the ${order.time} sale of ${formatSlshAmount(order.total)}?`)) return
-    setOrders((prev) => prev.filter((o) => o.id !== order.id))
+    if (!window.confirm(`Return receipt #${receiptNo(order, orders)} (${formatSlshAmount(order.total)})?`)) return
+    setOrders(next)
   }
 
   async function onAddWaiter() {
@@ -855,35 +850,46 @@ export default function NewEntry() {
             <div>
               <h2>Tonight&apos;s sales</h2>
               <p>
-                {orders.length} sale{orders.length === 1 ? '' : 's'} · {formatSlshAmount(grossSlsh)} · newest first
+                {liveOrders.length} sale{liveOrders.length === 1 ? '' : 's'} · {formatSlshAmount(grossSlsh)} · newest first
               </p>
             </div>
+            <Link to="/app/receipts" className="pos-orders__all">
+              All receipts
+            </Link>
           </header>
           {orders.length ? (
             <ul className="order-list">
               {orders.slice(0, showAllOrders ? undefined : 12).map((order) => (
-                <li key={order.id}>
-                  <span className="order-list__time">{order.time}</span>
+                <li key={order.id} className={order.returned ? 'is-returned' : undefined}>
+                  <span className="order-list__time">#{receiptNo(order, orders)}</span>
                   <div className="order-list__body">
                     <strong>
                       {order.lines.map((l) => `${l.qty}× ${l.itemName}`).join(', ')}
                     </strong>
-                    {order.waiter ? (
-                      <span className="order-list__waiter">
-                        <Users size={12} /> {order.waiter}
-                      </span>
-                    ) : null}
+                    <span className="order-list__meta">
+                      {order.time}
+                      {order.waiter ? (
+                        <span className="order-list__waiter">
+                          <Users size={12} /> {order.waiter}
+                        </span>
+                      ) : null}
+                      {order.returned ? <span className="order-list__returned">Returned</span> : null}
+                    </span>
                   </div>
                   <b className="order-list__total">{order.total.toLocaleString()}</b>
-                  <button
-                    type="button"
-                    className="order-list__void"
-                    aria-label={`Cancel the ${order.time} sale`}
-                    title="Cancel this sale"
-                    onClick={() => voidOrder(order)}
-                  >
-                    <Ban size={15} />
-                  </button>
+                  {order.returned ? (
+                    <span className="order-list__void order-list__void--done" aria-hidden />
+                  ) : (
+                    <button
+                      type="button"
+                      className="order-list__void"
+                      aria-label={`Return receipt #${receiptNo(order, orders)}`}
+                      title="Return this sale"
+                      onClick={() => voidOrder(order)}
+                    >
+                      <Ban size={15} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

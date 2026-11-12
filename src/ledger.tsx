@@ -13,6 +13,7 @@ import { supabase, CLIENT_ID } from './lib/supabase'
 import { useRealtimeRefetch } from './lib/realtime'
 import { reportSyncError } from './lib/syncStatus'
 import { useAuth } from './auth'
+import { activeOrders, itemSalesFrom, loanConflict } from './lib/pos'
 
 export type NightMoney = {
   gross: number
@@ -78,6 +79,12 @@ type LedgerContextValue = {
   finalRemaining: number
   /** Build the current night record for History (sales + expenses) */
   buildHistoryEntry: () => NightEntry | null
+  /** Return (or restore) a completed sale of tonight; gives back the updated History entry */
+  setOrderReturned: (
+    orderId: string,
+    returned: boolean,
+    reason?: string | null,
+  ) => { ok: true; entry: NightEntry | null } | { ok: false; error: string }
 }
 
 const EMPTY_NIGHT: NightMoney = {
@@ -194,6 +201,47 @@ type DraftRow = {
   draft: unknown
   expenses: unknown
   client_id: string | null
+}
+
+function operationalOf(expenses: ExpenseState) {
+  const staff = expenses.staff.reduce((sum, s) => sum + (Number(s.salary) || 0), 0)
+  return staff + expenses.chicken + expenses.wholesaler + expenses.grocerySpices + expenses.other
+}
+
+/** History record for a working night (sales + expenses) */
+function historyEntryFor(draft: NightDraft | null, expenses: ExpenseState): NightEntry | null {
+  const operationalTotal = operationalOf(expenses)
+  const hasSales = hasContent(draft)
+  const hasExpenses = operationalTotal > 0 || expenses.staff.length > 0
+  if (!hasSales && !hasExpenses) return null
+
+  const cash = draft?.cashSales ?? 0
+  return {
+    id: draft?.id ?? `night-${Date.now()}`,
+    date:
+      draft?.date ??
+      new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    dayLabel: draft?.dayLabel ?? 'Night Service',
+    timeLabel: timeNowLabel(),
+    totalSales: draft?.totalSales ?? 0,
+    loanAmount: draft?.loanAmount ?? 0,
+    cashSales: cash,
+    expenses: operationalTotal,
+    expenseBreakdown: {
+      staff: expenses.staff.map((s) => ({ name: s.name, salary: s.salary })),
+      chicken: expenses.chicken,
+      wholesaler: expenses.wholesaler,
+      grocerySpices: expenses.grocerySpices,
+      other: expenses.other,
+    },
+    netProfit: cash - operationalTotal,
+    covers: draft?.covers ?? 0,
+    loanCovers: draft?.loanCovers ?? 0,
+    loans: draft?.loans ?? [],
+    itemSales: draft?.itemSales ?? [],
+    orders: draft?.orders ?? [],
+    status: hasExpenses ? 'FINALIZED' : 'SALES',
+  }
 }
 
 const LedgerContext = createContext<LedgerContextValue | null>(null)
@@ -416,40 +464,48 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     [updateExpenses],
   )
 
-  const buildHistoryEntry = useCallback((): NightEntry | null => {
-    const draft = nightDraft
-    const hasSales = hasContent(draft)
-    const hasExpenses = operationalTotal > 0 || expenses.staff.length > 0
-    if (!hasSales && !hasExpenses) return null
+  const buildHistoryEntry = useCallback(
+    (): NightEntry | null => historyEntryFor(nightDraft, expenses),
+    [expenses, nightDraft],
+  )
 
-    const cash = draft?.cashSales ?? 0
-    return {
-      id: draft?.id ?? `night-${Date.now()}`,
-      date:
-        draft?.date ??
-        new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      dayLabel: draft?.dayLabel ?? 'Night Service',
-      timeLabel: timeNowLabel(),
-      totalSales: draft?.totalSales ?? 0,
-      loanAmount: draft?.loanAmount ?? 0,
-      cashSales: cash,
-      expenses: operationalTotal,
-      expenseBreakdown: {
-        staff: expenses.staff.map((s) => ({ name: s.name, salary: s.salary })),
-        chicken: expenses.chicken,
-        wholesaler: expenses.wholesaler,
-        grocerySpices: expenses.grocerySpices,
-        other: expenses.other,
-      },
-      netProfit: cash - operationalTotal,
-      covers: draft?.covers ?? 0,
-      loanCovers: draft?.loanCovers ?? 0,
-      loans: draft?.loans ?? [],
-      itemSales: draft?.itemSales ?? [],
-      orders: draft?.orders ?? [],
-      status: operationalTotal > 0 || expenses.staff.length > 0 ? 'FINALIZED' : 'SALES',
-    }
-  }, [expenses, nightDraft, operationalTotal])
+  const setOrderReturned = useCallback(
+    (orderId: string, returned: boolean, reason?: string | null) => {
+      const draft = draftRef.current
+      if (!draft) return { ok: false as const, error: 'There are no sales tonight.' }
+      const now = new Date()
+      const orders = draft.orders.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              returned: returned ? { at: now.toISOString(), time: timeNowLabel(), reason: reason ?? null } : null,
+            }
+          : o,
+      )
+      const blocked = loanConflict(orders, draft.loans)
+      if (blocked) {
+        return {
+          ok: false as const,
+          error: `Remove the ${blocked} loan first — this sale is needed to cover it.`,
+        }
+      }
+      const live = activeOrders(orders)
+      const totalSales = live.reduce((sum, o) => sum + o.total, 0)
+      const covers = live.reduce((sum, o) => sum + o.lines.reduce((n, l) => n + l.qty, 0), 0)
+      const next: NightDraft = {
+        ...draft,
+        orders,
+        itemSales: itemSalesFrom(orders),
+        totalSales,
+        covers,
+        cashSales: totalSales - draft.loanAmount,
+      }
+      commitDraft(next)
+      scheduleWrite()
+      return { ok: true as const, entry: historyEntryFor(next, expensesRef.current) }
+    },
+    [commitDraft, scheduleWrite],
+  )
 
   const value = useMemo<LedgerContextValue>(
     () => ({
@@ -474,8 +530,10 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       allDeductions,
       finalRemaining,
       buildHistoryEntry,
+      setOrderReturned,
     }),
     [
+      setOrderReturned,
       addStaff,
       allDeductions,
       beginFreshNight,

@@ -278,7 +278,7 @@ export default function Analytics() {
     type Line = { id: string; name: string; group: MenuGroup; qty: number; value: number }
     const linesOf = (row: NightEntry): Line[] => {
       if (row.orders?.length) {
-        return row.orders.flatMap((o) =>
+        return row.orders.filter((o) => !o.returned).flatMap((o) =>
           o.lines.map((l) => ({
             id: l.itemId,
             name: l.itemName,

@@ -80,6 +80,10 @@ export type PosOrder = {
   total: number
   /** Waiter who served the order (required when it contains shaah) */
   waiter?: string | null
+  /** Receipt number within the night (#1, #2 …) */
+  no?: number
+  /** Set when the sale was returned — kept for the record, excluded from totals */
+  returned?: { at: string; time: string; reason?: string | null } | null
 }
 
 export type WaiterStat = {
@@ -94,6 +98,7 @@ export type WaiterStat = {
 export function waiterStats(orders: PosOrder[] | undefined): WaiterStat[] {
   const map = new Map<string, WaiterStat>()
   for (const order of orders ?? []) {
+    if (order.returned) continue
     const name = order.waiter?.trim()
     if (!name) continue
     const shaahLines = order.lines.filter((line) => line.category === 'shaah')

@@ -13,6 +13,7 @@ import Prices from './Prices'
 import Analytics from './Analytics'
 import MenuStudio from './MenuStudio'
 import Settings from './Settings'
+import Receipts from './Receipts'
 import type { ReactNode } from 'react'
 
 function Protected({ children }: { children: ReactNode }) {
@@ -48,6 +49,7 @@ export default function App() {
               >
                 <Route index element={<Navigate to="entry" replace />} />
                 <Route path="entry" element={<NewEntry />} />
+                <Route path="receipts" element={<Receipts />} />
                 <Route path="expenses" element={<Expenses />} />
                 <Route path="history" element={<History />} />
                 <Route path="prices" element={<Prices />} />

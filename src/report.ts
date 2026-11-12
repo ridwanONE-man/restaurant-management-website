@@ -37,6 +37,7 @@ export function buildNightReport(entry: NightEntry) {
       let qty = 0
       let value = 0
       for (const order of entry.orders) {
+        if (order.returned) continue
         for (const line of order.lines) {
           if (groupOfCategory(line.category) !== group.key) continue
           qty += line.qty
@@ -62,7 +63,10 @@ export function buildNightReport(entry: NightEntry) {
     lines.push(`=== SALES LOG (${entry.orders.length} orders) ===`)
     for (const order of [...entry.orders].reverse()) {
       const items = order.lines.map((l) => `${l.qty}x ${l.itemName}`).join(' + ')
-      lines.push(`${order.time} · ${items} · ${formatSlshAmount(order.total)}${order.waiter ? ` · ${order.waiter}` : ''}`)
+      const tag = order.returned ? ` · RETURNED ${order.returned.time}${order.returned.reason ? ` (${order.returned.reason})` : ''}` : ''
+      lines.push(
+        `${order.no ? `#${order.no} ` : ''}${order.time} · ${items} · ${formatSlshAmount(order.total)}${order.waiter ? ` · ${order.waiter}` : ''}${tag}`,
+      )
     }
     lines.push('')
   }

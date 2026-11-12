@@ -82,7 +82,14 @@ export default function AppShell() {
     navigate('/')
   }
 
-  const currentLabel = NAV.find((n) => location.pathname.startsWith(n.to))?.label ?? ''
+  const BOX_TITLES: Record<string, string> = {
+    fastfood: 'Fast Food',
+    cuntowadani: 'Cuntowadani',
+    shaah: 'Shaah (Tea)',
+  }
+  const boxKey = location.pathname.match(/^\/app\/entry\/([a-z]+)/)?.[1]
+  const currentLabel =
+    (boxKey && BOX_TITLES[boxKey]) || NAV.find((n) => location.pathname.startsWith(n.to))?.label || ''
 
   return (
     <div className={`shell ${settings.compactTables ? 'is-compact' : ''}`}>

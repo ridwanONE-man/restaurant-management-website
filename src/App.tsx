@@ -48,7 +48,7 @@ export default function App() {
                 }
               >
                 <Route index element={<Navigate to="entry" replace />} />
-                <Route path="entry" element={<NewEntry />} />
+                <Route path="entry/:group?" element={<NewEntry />} />
                 <Route path="receipts" element={<Receipts />} />
                 <Route path="expenses" element={<Expenses />} />
                 <Route path="history" element={<History />} />

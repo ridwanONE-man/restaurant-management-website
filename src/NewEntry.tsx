@@ -20,8 +20,9 @@ import {
   Check,
   Users,
   Ban,
+  ArrowLeft,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './auth'
 import { usePricing } from './pricing'
 import { useLedger } from './ledger'
@@ -143,19 +144,24 @@ export default function NewEntry() {
   const [savedFlash, setSavedFlash] = useState(false)
   const [autoSavedFlash, setAutoSavedFlash] = useState(false)
   const [saveError, setSaveError] = useState('')
-  /** Which box is open — nothing until a box is tapped */
-  const [activeGroup, setActiveGroup] = useState<MenuGroup | null>(null)
-  const spaceRef = useRef<HTMLElement | null>(null)
+  /** Each box has its own page: /app/entry/fastfood · /cuntowadani · /shaah */
+  const params = useParams()
+  const navigate = useNavigate()
+  const activeGroup: MenuGroup | null = MENU_GROUPS.some((g) => g.key === params.group)
+    ? (params.group as MenuGroup)
+    : null
+  const activeGroupInfo = MENU_GROUPS.find((g) => g.key === activeGroup)
+
+  useEffect(() => {
+    if (params.group && !activeGroup) navigate('/app/entry', { replace: true })
+  }, [activeGroup, navigate, params.group])
 
   function pickGroup(group: MenuGroup) {
-    const next = activeGroup === group ? null : group
-    setActiveGroup(next)
-    if (next) {
-      window.setTimeout(() => {
-        const el = spaceRef.current
-        if (el && window.innerWidth < 1100) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 60)
-    }
+    navigate(`/app/entry/${group}`)
+  }
+
+  function closeGroup() {
+    navigate('/app/entry')
   }
 
   /** Drop loans / ticket lines for items that were removed from the menu */
@@ -643,6 +649,41 @@ export default function NewEntry() {
 
   return (
     <div className="page entry-page">
+      {activeGroup && activeGroupInfo ? (
+        <div className={`page-head group-page-head group-page-head--${activeGroup}`}>
+          <div>
+            <button type="button" className="group-back" onClick={closeGroup}>
+              <ArrowLeft size={16} /> Dashboard
+            </button>
+            <h1>
+              <span className="group-page-head__icon" aria-hidden>
+                {activeGroup === 'fastfood' ? (
+                  <UtensilsCrossed size={22} />
+                ) : activeGroup === 'cuntowadani' ? (
+                  <Wheat size={22} />
+                ) : (
+                  <Coffee size={22} />
+                )}
+              </span>
+              {activeGroupInfo.title}
+            </h1>
+            <p className="group-page-head__hint">{activeGroupInfo.hint}</p>
+          </div>
+          <nav className="group-switch" aria-label="Switch box">
+            {MENU_GROUPS.map((g) => (
+              <Link
+                key={g.key}
+                to={`/app/entry/${g.key}`}
+                replace
+                className={`group-switch__item group-switch__item--${g.key} ${g.key === activeGroup ? 'active' : ''}`}
+              >
+                {g.title.replace(' (Tea)', '')}
+                <b>{groupTotals[g.key].qty}</b>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      ) : (
       <div className="page-head">
         <div>
           <p className="eyebrow">MANAGEMENT CONSOLE</p>
@@ -669,6 +710,7 @@ export default function NewEntry() {
           <LiveClock />
         </div>
       </div>
+      )}
       {saveError ? <p className="entry-save-error">{saveError}</p> : null}
       {autoSavedFlash || lastAutoSavedAt ? (
         <p className="entry-save-ok">
@@ -685,6 +727,8 @@ export default function NewEntry() {
 
       <div className="pos-layout">
         <div className="pos-menu">
+          {!activeGroup ? (
+          <>
           {/* ---------------- tonight's dashboard ---------------- */}
           <section className="dash" aria-label="Tonight's dashboard">
             <div className="dash-kpis">
@@ -794,22 +838,16 @@ export default function NewEntry() {
             })}
           </div>
 
-          {/* ---------------- the opened box ---------------- */}
+          <p className="group-hint">Tap Fast Food, Cuntowadani or Shaah to open its page and start selling.</p>
+          </>
+          ) : null}
+
+          {/* ---------------- a box's own page ---------------- */}
           {activeGroup ? (
             <section
-              ref={spaceRef}
               className={`group-space group-space--${activeGroup}`}
-              aria-label={MENU_GROUPS.find((g) => g.key === activeGroup)?.title}
+              aria-label={activeGroupInfo?.title}
             >
-              <header className="group-space__head">
-                <div>
-                  <p>OPEN BOX</p>
-                  <h2>{MENU_GROUPS.find((g) => g.key === activeGroup)?.title}</h2>
-                </div>
-                <button type="button" className="group-space__close" onClick={() => setActiveGroup(null)}>
-                  <X size={16} /> Close
-                </button>
-              </header>
 
               <div className="group-space__stats">
                 <div>
@@ -948,9 +986,7 @@ export default function NewEntry() {
                 </section>
               ) : null}
             </section>
-          ) : (
-            <p className="group-hint">Tap Fast Food, Cuntowadani or Shaah to open its menu and start selling.</p>
-          )}
+          ) : null}
         </div>
 
         <aside className={`pos-ticket ${ticketOpen ? 'is-open' : ''} ${ticketQty ? 'has-items' : ''}`} aria-label="Current order">
@@ -1067,6 +1103,8 @@ export default function NewEntry() {
 
       {saleFlash ? <p className="entry-save-ok pos-flash">{saleFlash}</p> : null}
 
+      {!activeGroup ? (
+      <>
       <div className="pos-insights pos-insights--single">
         <section className="panel pos-orders">
           <header>
@@ -1412,6 +1450,8 @@ export default function NewEntry() {
           </div>
         </section>
       </div>
+      </>
+      ) : null}
     </div>
   )
 }

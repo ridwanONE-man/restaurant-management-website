@@ -212,7 +212,8 @@ export default function Expenses() {
         </div>
         <div className="head-actions">
           <Link to="/app/entry" className="date-chip download-chip">
-            Back to New Entry
+            <span className="ha-long">Back to New Entry</span>
+            <span className="ha-short">New Entry</span>
             <ArrowRight size={16} />
           </Link>
           <LiveClock />

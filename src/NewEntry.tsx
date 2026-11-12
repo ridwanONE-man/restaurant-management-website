@@ -606,11 +606,20 @@ export default function NewEntry() {
         <div className="head-actions">
           <Link to="/app/prices" className="rate-badge rate-badge--link" title="Edit tonight's prices">
             <Tags size={15} />
-            <strong>Edit SLSH Prices</strong>
+            <strong>
+              <span className="ha-long">Edit SLSH Prices</span>
+              <span className="ha-short">Prices</span>
+            </strong>
           </Link>
-          <button type="button" className="date-chip download-chip" onClick={downloadReport}>
+          <button
+            type="button"
+            className="date-chip download-chip"
+            onClick={downloadReport}
+            aria-label="Download night report"
+          >
             <Download size={16} />
-            Download night report
+            <span className="ha-long">Download night report</span>
+            <span className="ha-short">Report</span>
           </button>
           <LiveClock />
         </div>

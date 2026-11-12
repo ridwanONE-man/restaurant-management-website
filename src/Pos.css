@@ -1013,3 +1013,21 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* tab titles never break mid-word */
+.group-tab__copy strong {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+@media (max-width: 379px) {
+  .group-tab__copy strong {
+    font-size: 0.76rem;
+    letter-spacing: -0.02em;
+  }
+
+  .group-tab {
+    padding: 0.65rem 0.5rem;
+  }
+}

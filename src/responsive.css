@@ -384,3 +384,113 @@ svg {
     animation-duration: 2s;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Compact page header actions (Prices · Report · clock) on phones
+--------------------------------------------------------------------------- */
+.ha-short,
+.clock-short {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .page-head {
+    gap: 0.65rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .eyebrow {
+    margin-bottom: 0.25rem;
+    font-size: 0.64rem;
+  }
+
+  .page-head h1 {
+    font-size: 1.4rem;
+  }
+
+  .ha-long,
+  .clock-full {
+    display: none;
+  }
+
+  .ha-short,
+  .clock-short {
+    display: inline;
+  }
+
+  /* one slim row instead of three big stacked buttons */
+  .head-actions {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .head-actions > *,
+  .head-actions > .rate-badge,
+  .head-actions > .date-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0.4rem 0.55rem;
+    gap: 0.35rem;
+    border-radius: 11px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    justify-content: center;
+  }
+
+  .head-actions > .live-clock {
+    flex: 1.25 1 0;
+  }
+
+  .head-actions svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  .rate-badge strong {
+    font-size: 0.78rem;
+  }
+
+  /* clocks that sit alone in a header: small chip, not a full-width bar */
+  .page-head > .live-clock,
+  .history-toolbar .live-clock,
+  .menu-hero__side .live-clock {
+    align-self: flex-start;
+    min-height: 34px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
+    border-radius: 10px;
+  }
+
+  /* Analytics: range buttons get the whole row, the phone already shows the time */
+  .analytics-page .head-actions {
+    flex-wrap: wrap;
+  }
+
+  .analytics-page .head-actions > .range-tabs {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 0.2rem;
+  }
+
+  .analytics-page .range-tabs button {
+    min-height: 34px;
+    padding: 0 0.3rem;
+    font-size: 0.78rem;
+  }
+
+  .analytics-page .head-actions > .live-clock {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .head-actions > *,
+  .head-actions > .rate-badge,
+  .head-actions > .date-chip {
+    font-size: 0.72rem;
+    padding: 0.35rem 0.4rem;
+  }
+}

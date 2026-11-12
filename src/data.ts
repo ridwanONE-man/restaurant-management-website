@@ -161,6 +161,8 @@ export type NightEntry = {
   orders?: PosOrder[]
   /** Tea cash confirmed per waiter */
   teaSettlements?: TeaSettlement[]
+  /** Business day key (YYYY-MM-DD); the day closes at the cut-off time after midnight */
+  businessDay?: string
   /** SALES = night money saved before expenses; FINALIZED = expenses included */
   status: 'FINALIZED' | 'REVIEW' | 'SALES'
 }

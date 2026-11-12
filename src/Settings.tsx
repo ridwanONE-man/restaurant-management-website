@@ -383,6 +383,19 @@ export default function SettingsPage() {
               <p>Local display and safety options</p>
             </div>
           </header>
+          <label className="toggle-row day-cutoff-row">
+            <div>
+              <strong>Selling day closes at</strong>
+              <span>At this time after midnight the day is saved to History and a new day starts</span>
+            </div>
+            <input
+              type="time"
+              value={settings.dayCutoff}
+              onChange={(e) => {
+                if (/^\d{2}:\d{2}$/.test(e.target.value)) updateSettings({ dayCutoff: e.target.value })
+              }}
+            />
+          </label>
           <label className="toggle-row">
             <div>
               <strong>Confirm before clearing data</strong>

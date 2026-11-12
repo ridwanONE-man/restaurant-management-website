@@ -1711,3 +1711,198 @@ a.dash-money__item:hover {
     animation: none;
   }
 }
+
+/* ---------- countdown to the day's close ---------- */
+.dash-clock {
+  display: grid;
+  grid-template-columns: auto auto minmax(60px, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  margin-top: 0.35rem;
+  max-width: 420px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.dash-clock b {
+  color: var(--text);
+}
+
+.dash-clock__bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.dash-clock__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(var(--accent-2-rgb), 0.7), var(--accent));
+}
+
+/* ---------- last night's results ---------- */
+.last-night {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 22px;
+  border: 1px solid rgba(var(--violet-rgb), 0.35);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--violet-rgb), 0.18), transparent 55%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+  animation: space-open 0.25s ease;
+}
+
+.last-night header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.last-night__badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(var(--violet-rgb), 0.14);
+  color: var(--violet);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.last-night h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.last-night header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.last-night__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.last-night__grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.last-night__grid small {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.last-night__grid b {
+  font-size: 1rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.last-night__grid b.is-ok,
+.last-night__grid .is-net b {
+  color: var(--success);
+}
+
+.last-night__grid b.is-bad,
+.last-night__grid .is-neg b {
+  color: var(--danger);
+}
+
+.last-night__grid .is-net {
+  border-color: rgba(var(--success-rgb), 0.35);
+  background: rgba(var(--success-rgb), 0.08);
+}
+
+.last-night__facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.last-night__facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.last-night__facts svg {
+  color: var(--text-muted);
+}
+
+.last-night__facts li.is-warn {
+  color: var(--accent-2);
+}
+
+.last-night__facts li.is-bad {
+  color: var(--danger);
+}
+
+.last-night__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.last-night__actions a {
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--violet-rgb), 0.4);
+  color: var(--violet);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+@media (max-width: 767px) {
+  .last-night {
+    padding: 0.95rem;
+    border-radius: 18px;
+  }
+
+  .last-night h2 {
+    font-size: 1.1rem;
+  }
+
+  .last-night__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .last-night__actions a {
+    flex: 1;
+    text-align: center;
+  }
+}

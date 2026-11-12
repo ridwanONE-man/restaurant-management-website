@@ -14,6 +14,8 @@ import { useRealtimeRefetch } from './lib/realtime'
 import { reportSyncError } from './lib/syncStatus'
 import { useAuth } from './auth'
 import { activeOrders, itemSalesFrom, loanConflict } from './lib/pos'
+import { businessDayDateLabel, businessDayKey, businessDayName, parseCutoff } from './lib/businessDay'
+import { useSettings } from './appSettings'
 
 export type NightMoney = {
   gross: number
@@ -53,6 +55,8 @@ export type NightDraft = {
   orders: PosOrder[]
   /** Tea cash confirmed per waiter */
   teaSettlements?: TeaSettlement[]
+  /** Business day this night belongs to (YYYY-MM-DD, closes at the cut-off time) */
+  businessDay?: string
 }
 
 type LedgerContextValue = {
@@ -81,6 +85,10 @@ type LedgerContextValue = {
   finalRemaining: number
   /** Build the current night record for History (sales + expenses) */
   buildHistoryEntry: () => NightEntry | null
+  /** Business day of the night being worked on right now */
+  businessDay: string
+  /** Day that was closed automatically at the cut-off (until the next sale) */
+  lastAutoClosed: string | null
   /** Return (or restore) a completed sale of tonight; gives back the updated History entry */
   setOrderReturned: (
     orderId: string,
@@ -145,6 +153,7 @@ function normalizeDraft(raw: unknown): NightDraft | null {
     itemSales: Array.isArray(d.itemSales) ? d.itemSales : [],
     orders: Array.isArray(d.orders) ? d.orders : [],
     teaSettlements: Array.isArray(d.teaSettlements) ? d.teaSettlements : [],
+    businessDay: typeof d.businessDay === 'string' ? d.businessDay : undefined,
   }
 }
 
@@ -252,7 +261,12 @@ function historyEntryFor(draft: NightDraft | null, expenses: ExpenseState): Nigh
 const LedgerContext = createContext<LedgerContextValue | null>(null)
 
 export function LedgerProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, saveNight } = useAuth()
+  const { settings } = useSettings()
+  const cutoffRef = useRef(settings.dayCutoff)
+  cutoffRef.current = settings.dayCutoff
+  const [lastAutoClosed, setLastAutoClosed] = useState<string | null>(null)
+  const closingRef = useRef(false)
   const [nightDraft, setNightDraftState] = useState<NightDraft | null>(() =>
     readCache(DRAFT_KEY, normalizeDraft, null),
   )
@@ -381,11 +395,76 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
 
   const setNightDraft = useCallback(
     (draft: NightDraft | null) => {
-      commitDraft(draft)
+      let next = draft
+      if (draft) {
+        const prev = draftRef.current
+        // the day is fixed by the first sale of the night, then kept
+        const day =
+          prev && prev.id === draft.id && prev.businessDay && hasContent(prev)
+            ? prev.businessDay
+            : businessDayKey(new Date(), cutoffRef.current)
+        next = { ...draft, businessDay: day, date: businessDayDateLabel(day), dayLabel: businessDayName(day) }
+        if (hasContent(next)) setLastAutoClosed(null)
+      }
+      commitDraft(next)
       scheduleWrite()
     },
     [commitDraft, scheduleWrite],
   )
+
+  /** At the cut-off (default 01:30) save the night to History and start the next day */
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const check = async () => {
+      if (closingRef.current || !loadedRef.current) return
+      const local = draftRef.current
+      const today = businessDayKey(new Date(), cutoffRef.current)
+      if (!local || !hasContent(local) || !local.businessDay || local.businessDay === today) return
+      closingRef.current = true
+      try {
+        // re-read the shared sheet first: another device may already have closed the day
+        const { data, error } = await supabase
+          .from('night_drafts')
+          .select('draft, expenses, client_id')
+          .eq('id', 'current')
+          .maybeSingle()
+        if (error) throw error
+        const remote = normalizeDraft(data?.draft)
+        if (!remote || !hasContent(remote) || !remote.businessDay || remote.businessDay === today) {
+          if (data) applyRemote({ ...(data as DraftRow), client_id: null })
+          return
+        }
+        const entry = historyEntryFor(remote, normalizeExpenses(data?.expenses))
+        if (entry) {
+          saveNight({
+            ...entry,
+            status: 'FINALIZED',
+            timeLabel: `${parseCutoff(cutoffRef.current).label} · auto-closed`,
+          })
+        }
+        window.clearTimeout(writeTimer.current)
+        commitDraft(null)
+        commitExpenses(emptyExpenses())
+        setLastAutoSavedAt(null)
+        setNightSession((n) => n + 1)
+        setLastAutoClosed(remote.businessDay)
+        lastSigRef.current = null
+        await flushWrite()
+      } catch (err) {
+        reportSyncError(err)
+      } finally {
+        closingRef.current = false
+      }
+    }
+    void check()
+    const id = window.setInterval(() => void check(), 30_000)
+    const onVisible = () => document.visibilityState === 'visible' && void check()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [applyRemote, commitDraft, commitExpenses, flushWrite, isAuthenticated, saveNight])
 
   const clearNightDraft = useCallback(() => {
     commitDraft(null)
@@ -536,9 +615,15 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       finalRemaining,
       buildHistoryEntry,
       setOrderReturned,
+      businessDay: nightDraft?.businessDay && hasContent(nightDraft)
+        ? nightDraft.businessDay
+        : businessDayKey(new Date(), settings.dayCutoff),
+      lastAutoClosed,
     }),
     [
       setOrderReturned,
+      lastAutoClosed,
+      settings.dayCutoff,
       addStaff,
       allDeductions,
       beginFreshNight,

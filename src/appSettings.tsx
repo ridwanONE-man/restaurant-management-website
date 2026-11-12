@@ -19,6 +19,8 @@ export type AppSettings = {
   shiftLabel: string
   compactTables: boolean
   confirmBeforeClear: boolean
+  /** The selling day closes at this time after midnight, e.g. "01:30" */
+  dayCutoff: string
 }
 
 type SettingsContextValue = {
@@ -34,6 +36,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   shiftLabel: 'Night Service',
   compactTables: false,
   confirmBeforeClear: true,
+  dayCutoff: '01:30',
 }
 
 /** Local cache only — the source of truth is public.kitchen_settings */
@@ -47,6 +50,7 @@ type SettingsRow = {
   shift_label: string
   compact_tables: boolean
   confirm_before_clear: boolean
+  day_cutoff?: string | null
 }
 
 function rowToSettings(row: SettingsRow): AppSettings {
@@ -57,6 +61,7 @@ function rowToSettings(row: SettingsRow): AppSettings {
     shiftLabel: row.shift_label,
     compactTables: row.compact_tables,
     confirmBeforeClear: row.confirm_before_clear,
+    dayCutoff: row.day_cutoff || '01:30',
   }
 }
 
@@ -68,6 +73,7 @@ function settingsToRow(s: Partial<AppSettings>) {
   if (s.shiftLabel !== undefined) row.shift_label = s.shiftLabel
   if (s.compactTables !== undefined) row.compact_tables = s.compactTables
   if (s.confirmBeforeClear !== undefined) row.confirm_before_clear = s.confirmBeforeClear
+  if (s.dayCutoff !== undefined) row.day_cutoff = s.dayCutoff
   return row
 }
 

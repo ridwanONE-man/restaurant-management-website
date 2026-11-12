@@ -52,7 +52,15 @@ import {
 import { useWaiters } from './waiters'
 import { activeOrders, itemSalesFrom, loanConflict, nextReceiptNo, receiptNo } from './lib/pos'
 import { getMenuIcon } from './menuIcons'
-import LiveClock, { formatDayLabel, formatEntryDate } from './LiveClock'
+import LiveClock from './LiveClock'
+import { useSettings } from './appSettings'
+import {
+  businessDayDateLabel,
+  businessDayName,
+  formatTimeLeft,
+  nextCutoffAt,
+  parseCutoff,
+} from './lib/businessDay'
 import { downloadNightReport } from './report'
 import './NewEntry.css'
 import './Pos.css'
@@ -135,7 +143,12 @@ export default function NewEntry() {
     allDeductions,
     finalRemaining,
     buildHistoryEntry,
+    businessDay,
+    lastAutoClosed,
   } = useLedger()
+  const { settings } = useSettings()
+  const dayDate = businessDayDateLabel(businessDay)
+  const dayName = businessDayName(businessDay)
   const nightIdRef = useRef(nightDraft?.id ?? String(Date.now()))
   const { waiters, addWaiter } = useWaiters()
   const [orders, setOrders] = useState<PosOrder[]>(() => ordersFromDraft(menu, nightDraft))
@@ -219,8 +232,9 @@ export default function NewEntry() {
   useEffect(() => {
     setNightDraft({
       id: nightIdRef.current,
-      date: formatEntryDate(),
-      dayLabel: formatDayLabel(),
+      date: dayDate,
+      dayLabel: dayName,
+      businessDay,
       totalSales: grossSlsh,
       loanAmount: loanSlsh,
       cashSales: cashSlsh,
@@ -234,6 +248,9 @@ export default function NewEntry() {
   }, [
     orders,
     teaSettlements,
+    businessDay,
+    dayDate,
+    dayName,
     cashSlsh,
     covers,
     grossSlsh,
@@ -287,8 +304,9 @@ export default function NewEntry() {
     const timer = window.setTimeout(() => {
       const draft = {
         id: nightIdRef.current,
-        date: formatEntryDate(),
-        dayLabel: formatDayLabel(),
+        date: dayDate,
+        dayLabel: dayName,
+        businessDay,
         totalSales: grossSlsh,
         loanAmount: loanSlsh,
         cashSales: cashSlsh,
@@ -603,6 +621,27 @@ export default function NewEntry() {
     return [...map.values()].sort((a, b) => b.total - a.total)
   }, [loanRecords])
 
+  /* ------------------------------------------------- business day */
+  const cutoffLabel = parseCutoff(settings.dayCutoff).label
+  const closesAt = nextCutoffAt(new Date(now), settings.dayCutoff)
+  const msLeft = closesAt.getTime() - now
+  const dayProgress = Math.min(100, Math.max(0, 100 - (msLeft / (24 * 3_600_000)) * 100))
+  /** The most recently closed day, shown until the first sale of the new day */
+  const lastNight = useMemo(() => history.find((h) => h.id !== nightIdRef.current) ?? null, [history])
+  const lastNightGroups = useMemo(() => {
+    const totals: Record<MenuGroup, number> = { fastfood: 0, cuntowadani: 0, shaah: 0 }
+    for (const order of activeOrders(lastNight?.orders)) {
+      for (const line of order.lines) totals[groupOfCategory(line.category)] += line.qty
+    }
+    return totals
+  }, [lastNight])
+  const lastNightTop = useMemo(
+    () => [...(lastNight?.itemSales ?? [])].sort((a, b) => b.qty - a.qty)[0] ?? null,
+    [lastNight],
+  )
+  const lastNightOwed = (lastNight?.teaSettlements ?? []).reduce((sum, t) => sum + t.owed, 0)
+  const showLastNight = !orders.length && Boolean(lastNight)
+
   /* ------------------------------------------------- dashboard insights */
   const avgReceipt = liveOrders.length ? Math.round(grossSlsh / liveOrders.length) : 0
   const goalPct = recentAvgSales ? Math.round((grossSlsh / recentAvgSales) * 100) : 0
@@ -682,8 +721,9 @@ export default function NewEntry() {
     return (
       buildHistoryEntry() ?? {
         id: nightIdRef.current,
-        date: formatEntryDate(),
-        dayLabel: formatDayLabel(),
+        date: dayDate,
+        dayLabel: dayName,
+        businessDay,
         timeLabel: timeNowLabel(),
         totalSales: grossSlsh,
         loanAmount: loanSlsh,
@@ -903,17 +943,92 @@ export default function NewEntry() {
         <div className="pos-menu">
           {!activeGroup ? (
           <>
+          {/* ---------------- last night's results (until the first sale of today) ---------------- */}
+          {showLastNight && lastNight ? (
+            <section className="last-night" aria-label="Last night's results">
+              <header>
+                <span className="last-night__badge">
+                  <Moon size={14} /> {lastAutoClosed ? `Closed automatically at ${cutoffLabel}` : 'Last closed night'}
+                </span>
+                <h2>
+                  {lastNight.dayLabel} · {lastNight.date}
+                </h2>
+                <p>These results stay here until the first sale of today. They are saved in History and Analytics.</p>
+              </header>
+              <div className="last-night__grid">
+                <div>
+                  <small>Sales</small>
+                  <b>{formatSlshAmount(lastNight.totalSales)}</b>
+                </div>
+                <div>
+                  <small>Cash</small>
+                  <b className="is-ok">{formatSlshAmount(lastNight.cashSales)}</b>
+                </div>
+                <div>
+                  <small>Expenses</small>
+                  <b className="is-bad">{formatSlshAmount(lastNight.expenses)}</b>
+                </div>
+                <div className={lastNight.netProfit < 0 ? 'is-neg' : 'is-net'}>
+                  <small>Net</small>
+                  <b>{formatSlshAmount(lastNight.netProfit)}</b>
+                </div>
+              </div>
+              <ul className="last-night__facts">
+                <li>
+                  <Receipt size={15} /> {activeOrders(lastNight.orders).length || '—'} receipts
+                </li>
+                <li>
+                  <UtensilsCrossed size={15} /> {lastNightGroups.fastfood} fast food
+                </li>
+                <li>
+                  <Wheat size={15} /> {lastNightGroups.cuntowadani} cuntowadani
+                </li>
+                <li>
+                  <Coffee size={15} /> {lastNightGroups.shaah} shaah
+                </li>
+                {lastNightTop ? (
+                  <li>
+                    <Trophy size={15} /> {lastNightTop.itemName} × {lastNightTop.qty}
+                  </li>
+                ) : null}
+                {lastNight.loanAmount ? (
+                  <li className="is-warn">
+                    <HandCoins size={15} /> {formatSlshAmount(lastNight.loanAmount)} on loan
+                  </li>
+                ) : null}
+                {lastNightOwed ? (
+                  <li className="is-bad">
+                    <CircleAlert size={15} /> waiters owe {formatSlshAmount(lastNightOwed)}
+                  </li>
+                ) : null}
+              </ul>
+              <div className="last-night__actions">
+                <Link to="/app/history">Open History</Link>
+                <Link to="/app/analytics">Open Analytics</Link>
+              </div>
+            </section>
+          ) : null}
+
           {/* ---------------- tonight at a glance ---------------- */}
           <section className="dash" aria-label="Tonight's dashboard">
             <div className="dash-hero">
               <div className="dash-hero__main">
                 <span className="dash-hero__label">
-                  <i className="dash-live" aria-hidden /> Tonight · {formatDayLabel()}
+                  <i className="dash-live" aria-hidden /> {dayName} · closes {cutoffLabel}
                 </span>
                 <strong className="dash-hero__value">{formatSlshAmount(grossSlsh)}</strong>
                 <span className="dash-hero__sub">
                   {liveOrders.length} receipt{liveOrders.length === 1 ? '' : 's'} · avg {formatSlshAmount(avgReceipt)}
                 </span>
+                <div className="dash-clock" title={`The day is saved automatically at ${cutoffLabel}`}>
+                  <Clock3 size={13} />
+                  <span>
+                    <b>{formatTimeLeft(msLeft)}</b> left · closes {cutoffLabel}
+                  </span>
+                  <span className="dash-clock__bar" aria-hidden>
+                    <i style={{ width: `${dayProgress}%` }} />
+                  </span>
+                </div>
                 {recentAvgSales ? (
                   <div className="dash-goal">
                     <div className="dash-goal__bar">

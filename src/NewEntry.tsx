@@ -24,6 +24,13 @@ import {
   CircleCheck,
   CircleAlert,
   Undo2,
+  TriangleAlert,
+  Trophy,
+  Clock3,
+  Zap,
+  Moon,
+  ShoppingBag,
+  TrendingUp,
 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './auth'
@@ -206,7 +213,6 @@ export default function NewEntry() {
   const cashSlsh = grossSlsh - loanSlsh
   const covers = Object.values(counts).reduce((a, b) => a + b, 0)
   const loanCovers = loanRecords.reduce((a, b) => a + b.qty, 0)
-  const paidCovers = covers - loanCovers
 
   const itemSales = useMemo(() => itemSalesFrom(orders), [orders])
 
@@ -352,7 +358,6 @@ export default function NewEntry() {
   }, [liveOrders, menu])
 
   /* ------------------------------------------------------------ dashboard */
-  const returnedCount = orders.length - liveOrders.length
 
   /** Average of recent saved nights, to compare tonight against */
   const recentAvgSales = useMemo(() => {
@@ -378,6 +383,14 @@ export default function NewEntry() {
     return rows
   }, [liveOrders])
   const hourlyMax = Math.max(1, ...hourly.map((r) => r.value))
+  const peakHour = hourly.length ? hourly.reduce((a, b) => (b.value > a.value ? b : a)) : null
+
+  /** ticks every 30s so "last sale x min ago" stays fresh */
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   /** Per-box detail: receipts, top items */
   const groupDetail = useMemo(() => {
@@ -590,6 +603,80 @@ export default function NewEntry() {
     return [...map.values()].sort((a, b) => b.total - a.total)
   }, [loanRecords])
 
+  /* ------------------------------------------------- dashboard insights */
+  const avgReceipt = liveOrders.length ? Math.round(grossSlsh / liveOrders.length) : 0
+  const goalPct = recentAvgSales ? Math.round((grossSlsh / recentAvgSales) * 100) : 0
+  const bestSeller = useMemo(
+    () => [...itemSales].sort((a, b) => b.qty - a.qty || b.value - a.value)[0] ?? null,
+    [itemSales],
+  )
+  const lastSale = liveOrders.find((o) => o.time !== 'Earlier') ?? null
+  const minsSinceLast = lastSale ? Math.max(0, Math.floor((now - Date.parse(lastSale.at)) / 60_000)) : null
+  const returnedValue = orders.filter((o) => o.returned).reduce((sum, o) => sum + o.total, 0)
+
+  type Alert = { key: string; tone: 'bad' | 'warn' | 'info'; text: string; to?: string; cta?: string }
+  const alerts = useMemo<Alert[]>(() => {
+    const list: Alert[] = []
+    const zero = menu.filter((m) => m.price <= 0)
+    if (zero.length) {
+      list.push({
+        key: 'zero',
+        tone: 'bad',
+        text: `${zero.length} item${zero.length === 1 ? ' is' : 's are'} priced at 0 SLSH: ${zero
+          .slice(0, 3)
+          .map((m) => m.name)
+          .join(', ')}${zero.length > 3 ? '…' : ''}`,
+        to: '/app/prices',
+        cta: 'Set prices',
+      })
+    }
+    if (teaTotals.owed) {
+      list.push({
+        key: 'owed',
+        tone: 'bad',
+        text: `Waiters owe ${formatSlshAmount(teaTotals.owed)} for ${teaTotals.owedCups} missing cup${teaTotals.owedCups === 1 ? '' : 's'}`,
+        to: '/app/entry/shaah',
+        cta: 'View',
+      })
+    }
+    const pendingTea = teaRows.filter((r) => r.status !== 'confirmed')
+    if (pendingTea.length) {
+      list.push({
+        key: 'tea',
+        tone: 'warn',
+        text: `Tea cash not confirmed: ${pendingTea.map((r) => r.name).join(', ')}`,
+        to: '/app/entry/shaah',
+        cta: 'Confirm',
+      })
+    }
+    if (loansByPerson.length) {
+      list.push({
+        key: 'loans',
+        tone: 'warn',
+        text: `${loansByPerson.length} ${loansByPerson.length === 1 ? 'person owes' : 'people owe'} ${formatSlshAmount(loanSlsh)} on loan`,
+        to: '/app/entry/fastfood',
+        cta: 'Loans',
+      })
+    }
+    if (grossSlsh > 0 && operationalTotal === 0) {
+      list.push({ key: 'exp', tone: 'info', text: 'No expenses entered for tonight yet', to: '/app/expenses', cta: 'Add' })
+    }
+    if (returnedValue > 0) {
+      list.push({
+        key: 'ret',
+        tone: 'info',
+        text: `${orders.length - liveOrders.length} receipt${orders.length - liveOrders.length === 1 ? '' : 's'} returned (${formatSlshAmount(returnedValue)})`,
+        to: '/app/receipts',
+        cta: 'Review',
+      })
+    }
+    if (minsSinceLast !== null && minsSinceLast >= 45) {
+      list.push({ key: 'quiet', tone: 'info', text: `No sale for ${minsSinceLast} minutes` })
+    }
+    return list
+  }, [grossSlsh, liveOrders.length, loanSlsh, loansByPerson.length, menu, minsSinceLast, operationalTotal, orders.length, returnedValue, teaRows, teaTotals])
+
+
   /** Sales-only snapshot for download when needed */
   function buildSalesEntry(): NightEntry {
     return (
@@ -712,6 +799,11 @@ export default function NewEntry() {
       setSaveError('Add tonight’s sales (or loans) before saving.')
       return
     }
+    const pendingTea = teaRows.filter((r) => r.status !== 'confirmed').length
+    const message =
+      `Save tonight (${formatSlshAmount(grossSlsh)}, ${liveOrders.length} receipts) to History and start a new night?` +
+      (pendingTea ? `\n\n⚠ Tea cash is not confirmed for ${pendingTea} waiter${pendingTea === 1 ? '' : 's'}.` : '')
+    if (!window.confirm(message)) return
     const entry = buildHistoryEntry()
     if (entry) saveNight(entry)
     setSaveError('')
@@ -811,67 +903,144 @@ export default function NewEntry() {
         <div className="pos-menu">
           {!activeGroup ? (
           <>
-          {/* ---------------- tonight's dashboard ---------------- */}
+          {/* ---------------- tonight at a glance ---------------- */}
           <section className="dash" aria-label="Tonight's dashboard">
-            <div className="dash-kpis">
-              <article className="dash-kpi dash-kpi--sales">
-                <span>Sales tonight</span>
-                <strong>{formatSlshAmount(grossSlsh)}</strong>
-                <em>
-                  {liveOrders.length} receipt{liveOrders.length === 1 ? '' : 's'}
-                  {recentAvgSales
-                    ? ` · ${grossSlsh >= recentAvgSales ? '▲' : '▼'} avg ${formatSlshAmount(recentAvgSales)}`
-                    : ''}
-                </em>
-              </article>
-              <article className="dash-kpi dash-kpi--cash">
-                <span>Cash collected</span>
-                <strong>{formatSlshAmount(cashSlsh)}</strong>
-                <em>{grossSlsh ? Math.round((cashSlsh / grossSlsh) * 100) : 0}% of sales</em>
-              </article>
-              <article className="dash-kpi dash-kpi--loan">
-                <span>On loan</span>
-                <strong>{formatSlshAmount(loanSlsh)}</strong>
-                <em>
-                  {loanCovers} item{loanCovers === 1 ? '' : 's'} · {loansByPerson.length} people
-                </em>
-              </article>
-              <article className="dash-kpi dash-kpi--expense">
-                <span>Expenses</span>
-                <strong>{formatSlshAmount(operationalTotal)}</strong>
-                <em>
-                  <Link to="/app/expenses">Open Expenses</Link>
-                </em>
-              </article>
-              <article className={`dash-kpi dash-kpi--net ${finalRemaining < 0 ? 'is-neg' : ''}`}>
-                <span>Net remaining</span>
-                <strong>{formatSlshAmount(finalRemaining)}</strong>
-                <em>
-                  {returnedCount ? `${returnedCount} returned · ` : ''}
-                  <Link to="/app/receipts">Receipts</Link>
-                </em>
-              </article>
+            <div className="dash-hero">
+              <div className="dash-hero__main">
+                <span className="dash-hero__label">
+                  <i className="dash-live" aria-hidden /> Tonight · {formatDayLabel()}
+                </span>
+                <strong className="dash-hero__value">{formatSlshAmount(grossSlsh)}</strong>
+                <span className="dash-hero__sub">
+                  {liveOrders.length} receipt{liveOrders.length === 1 ? '' : 's'} · avg {formatSlshAmount(avgReceipt)}
+                </span>
+                {recentAvgSales ? (
+                  <div className="dash-goal">
+                    <div className="dash-goal__bar">
+                      <i style={{ width: `${Math.min(100, goalPct)}%` }} />
+                    </div>
+                    <small>
+                      <TrendingUp size={13} /> {goalPct}% of a usual night ({formatSlshAmount(recentAvgSales)})
+                    </small>
+                  </div>
+                ) : (
+                  <small className="dash-goal__hint">Your usual night appears after a few saved nights.</small>
+                )}
+              </div>
+              <ul className="dash-hero__facts">
+                <li>
+                  <Trophy size={16} />
+                  <small>Best seller</small>
+                  <b>{bestSeller ? `${bestSeller.itemName} × ${bestSeller.qty}` : '—'}</b>
+                </li>
+                <li>
+                  <Zap size={16} />
+                  <small>Busiest hour</small>
+                  <b>{peakHour && peakHour.value ? `${String(peakHour.hour).padStart(2, '0')}:00` : '—'}</b>
+                </li>
+                <li>
+                  <Clock3 size={16} />
+                  <small>Last sale</small>
+                  <b>{minsSinceLast === null ? '—' : minsSinceLast < 1 ? 'just now' : `${minsSinceLast} min ago`}</b>
+                </li>
+              </ul>
             </div>
 
-            <div className="dash-hours panel">
-              <header>
-                <ChartColumn size={16} className="accent-green" />
-                <h2>Sales by hour</h2>
-                <small>{hourly.length ? `${hourly.length} hour${hourly.length === 1 ? '' : 's'}` : 'tonight'}</small>
-              </header>
-              {hourly.length ? (
-                <div className="dash-hours__plot">
-                  {hourly.map((r) => (
-                    <div key={r.hour} className="dash-hours__col" title={`${r.hour}:00 · ${formatSlshAmount(r.value)}`}>
-                      <i style={{ height: `${Math.max(r.value ? 6 : 2, (r.value / hourlyMax) * 100)}%` }} />
-                      <span>{String(r.hour).padStart(2, '0')}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="dash-hours__empty">The chart fills in as you complete sales.</p>
-              )}
+            <div className="dash-money">
+              <Link to="/app/receipts" className="dash-money__item is-cash">
+                <small>Cash</small>
+                <b>{formatSlshAmount(cashSlsh)}</b>
+                <em>{grossSlsh ? Math.round((cashSlsh / grossSlsh) * 100) : 0}% of sales</em>
+              </Link>
+              <Link to="/app/entry/fastfood" className="dash-money__item is-loan">
+                <small>On loan</small>
+                <b>{formatSlshAmount(loanSlsh)}</b>
+                <em>{loansByPerson.length} people</em>
+              </Link>
+              <Link to="/app/expenses" className="dash-money__item is-expense">
+                <small>Expenses</small>
+                <b>{formatSlshAmount(operationalTotal)}</b>
+                <em>{operationalTotal ? 'entered' : 'tap to add'}</em>
+              </Link>
+              <div className={`dash-money__item is-net ${finalRemaining < 0 ? 'is-neg' : ''}`}>
+                <small>Net</small>
+                <b>{formatSlshAmount(finalRemaining)}</b>
+                <em>after expenses</em>
+              </div>
             </div>
+
+            <div className="dash-row">
+              <section className="panel dash-alerts">
+                <header>
+                  {alerts.length ? <TriangleAlert size={16} /> : <CircleCheck size={16} />}
+                  <h2>{alerts.length ? 'Needs attention' : 'All good'}</h2>
+                  {alerts.length ? <b className="dash-alerts__count">{alerts.length}</b> : null}
+                </header>
+                {alerts.length ? (
+                  <ul>
+                    {alerts.map((a) => (
+                      <li key={a.key} className={`is-${a.tone}`}>
+                        <i aria-hidden />
+                        <span>{a.text}</span>
+                        {a.to ? (
+                          <Link to={a.to} className="dash-alerts__cta">
+                            {a.cta}
+                          </Link>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="dash-alerts__ok">Prices set, tea cash confirmed and nothing waiting. Keep selling!</p>
+                )}
+              </section>
+
+              <section className="dash-hours panel">
+                <header>
+                  <ChartColumn size={16} className="accent-green" />
+                  <h2>Sales by hour</h2>
+                  <small>
+                    {peakHour && peakHour.value
+                      ? `peak ${String(peakHour.hour).padStart(2, '0')}:00 · ${formatSlshAmount(peakHour.value)}`
+                      : 'tonight'}
+                  </small>
+                </header>
+                {hourly.length ? (
+                  <div className="dash-hours__plot">
+                    {hourly.map((r) => (
+                      <div
+                        key={r.hour}
+                        className={`dash-hours__col ${peakHour && r.hour === peakHour.hour ? 'is-peak' : ''}`}
+                        title={`${r.hour}:00 · ${formatSlshAmount(r.value)}`}
+                      >
+                        <i style={{ height: `${Math.max(r.value ? 6 : 2, (r.value / hourlyMax) * 100)}%` }} />
+                        <span>{String(r.hour).padStart(2, '0')}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="dash-hours__empty">The chart fills in as you complete sales.</p>
+                )}
+              </section>
+            </div>
+
+            <nav className="dash-actions" aria-label="Quick actions">
+              <Link to="/app/entry/fastfood" className="dash-action is-primary">
+                <ShoppingBag size={18} /> New sale
+              </Link>
+              <Link to="/app/entry/shaah" className="dash-action">
+                <Coffee size={18} /> Shaah
+              </Link>
+              <Link to="/app/receipts" className="dash-action">
+                <Receipt size={18} /> Receipts
+              </Link>
+              <Link to="/app/expenses" className="dash-action">
+                <Wallet size={18} /> Expenses
+              </Link>
+              <button type="button" className="dash-action" onClick={downloadReport}>
+                <Download size={18} /> Report
+              </button>
+            </nav>
           </section>
 
           {/* ---------------- the three boxes ---------------- */}
@@ -920,7 +1089,7 @@ export default function NewEntry() {
             })}
           </div>
 
-          <p className="group-hint">Tap Fast Food, Cuntowadani or Shaah to open its page and start selling.</p>
+          <p className="group-hint">Tap a box to open its menu and sell.</p>
 
           <div className="dash-mini">
             <section className="dash-card dash-card--loans">
@@ -974,7 +1143,7 @@ export default function NewEntry() {
                   {teaRows.map((row) => (
                     <li key={row.name}>
                       <span>
-                        {row.name} · {row.shaahCups} cups
+                        {row.name} · {row.shaahCups} cup{row.shaahCups === 1 ? '' : 's'}
                       </span>
                       <em className={`tea-chip is-${row.status}`}>
                         {row.status === 'confirmed'
@@ -1578,110 +1747,43 @@ export default function NewEntry() {
 
       </div>
 
-      <div className="bottom-grid bottom-grid--summary">
-        <section className="panel summary-panel summary-panel--wide">
-          <header>
-            <ChartColumn size={18} className="accent-green" />
-            <div>
-              <h2>Night Money Summary</h2>
-              <p>Sales & loans here · expenses on the Expenses page</p>
-            </div>
-          </header>
-
-          <div className="summary-body">
-            <span className="summary-label">CASH COLLECTED TONIGHT</span>
-            <div className="summary-profit">
-              <strong className="summary-slsh-main">{formatSlshAmount(cashSlsh)}</strong>
-            </div>
-
-            <div className="summary-lines">
-              <div>
-                <span>
-                  <i className="dot white" /> Gross (all items)
-                </span>
-                <strong>{formatSlshAmount(grossSlsh)}</strong>
-              </div>
-              <div>
-                <span>
-                  <i className="dot cash" /> Cash collected
-                </span>
-                <strong>{formatSlshAmount(cashSlsh)}</strong>
-              </div>
-              <div>
-                <span>
-                  <i className="dot loan" /> On loan
-                </span>
-                <strong className="loan-val">{formatSlshAmount(loanSlsh)}</strong>
-              </div>
-              <div className="covers-line">
-                <span>Items · paid / loan</span>
-                <strong>
-                  {paidCovers} / {loanCovers}
-                </strong>
-              </div>
-            </div>
-
-            <div className="expense-preview">
-              <div className="expense-preview__head">
-                <Wallet size={16} />
-                <span>AFTER EXPENSES (from Expenses page)</span>
-              </div>
-              <div className="summary-lines">
-                <div>
-                  <span>− Operational expenses</span>
-                  <strong className="expense-val">{formatSlshAmount(-operationalTotal)}</strong>
-                </div>
-                <div>
-                  <span>Total deducted</span>
-                  <strong className="expense-val">{formatSlshAmount(-allDeductions)}</strong>
-                </div>
-              </div>
-              <div className={`final-remaining ${finalRemaining < 0 ? 'is-neg' : ''}`}>
-                <span>Final remaining</span>
-                <strong>{formatSlshAmount(finalRemaining)}</strong>
-              </div>
-              <Link to="/app/expenses" className="expenses-link-btn">
-                Open Expenses Calculator
-              </Link>
-            </div>
-
-            {loansByPerson.length ? (
-              <div className="borrower-list">
-                <span className="summary-label">LOAN NAMES</span>
-                {loansByPerson.map((person) => (
-                  <div key={`${person.name}-${person.phone}`} className="borrower-card">
-                    <div className="borrower-card__head">
-                      <div>
-                        <strong>{person.name}</strong>
-                        {person.phone ? <em className="borrower-phone">{person.phone}</em> : null}
-                      </div>
-                      <span>{formatSlshAmount(person.total)}</span>
-                    </div>
-                    <ul>
-                      {person.lines.map((line) => (
-                        <li key={line.id}>
-                          {line.itemName} × {line.qty} · {formatSlshAmount(line.value)}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+      <section className="panel night-close">
+        <header>
+          <Moon size={18} className="accent-orange" />
+          <div>
+            <h2>Close the night</h2>
+            <p>Save tonight to History, then start a fresh night on every device.</p>
           </div>
-
-          <div className="summary-actions">
-            <button type="button" className="download-btn" onClick={downloadReport}>
-              <Download size={18} />
-              DOWNLOAD REPORT
-            </button>
-            <button type="button" className="save-btn" onClick={saveAndRefresh}>
-              <Save size={18} />
-              {savedFlash ? 'SAVED & REFRESHED' : 'SAVE & NEW NIGHT'}
-            </button>
+        </header>
+        <div className="night-close__grid">
+          <div>
+            <small>Gross</small>
+            <b>{formatSlshAmount(grossSlsh)}</b>
           </div>
-        </section>
-      </div>
+          <div>
+            <small>Cash</small>
+            <b className="is-ok">{formatSlshAmount(cashSlsh)}</b>
+          </div>
+          <div>
+            <small>Expenses</small>
+            <b className="is-bad">{formatSlshAmount(-allDeductions)}</b>
+          </div>
+          <div className={`is-final ${finalRemaining < 0 ? 'is-neg' : ''}`}>
+            <small>Final remaining</small>
+            <b>{formatSlshAmount(finalRemaining)}</b>
+          </div>
+        </div>
+        <div className="night-close__actions">
+          <button type="button" className="download-btn" onClick={downloadReport}>
+            <Download size={18} />
+            Download report
+          </button>
+          <button type="button" className="save-btn" onClick={saveAndRefresh}>
+            <Save size={18} />
+            {savedFlash ? 'Saved & refreshed' : 'Save & new night'}
+          </button>
+        </div>
+      </section>
       </>
       ) : null}
     </div>

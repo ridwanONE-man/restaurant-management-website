@@ -59,6 +59,15 @@ export function buildNightReport(entry: NightEntry) {
     lines.push('')
   }
 
+  if (entry.teaSettlements?.length) {
+    lines.push('=== TEA CASH CONFIRMED ===')
+    for (const t of entry.teaSettlements) {
+      const owes = t.missingCups ? ` · OWES ${t.missingCups} cups (${formatSlshAmount(t.owed)})` : ''
+      lines.push(`${t.waiter}: ${t.cups} cups · received ${formatSlshAmount(t.received)} at ${t.time}${owes}`)
+    }
+    lines.push('')
+  }
+
   if (entry.orders?.length) {
     lines.push(`=== SALES LOG (${entry.orders.length} orders) ===`)
     for (const order of [...entry.orders].reverse()) {

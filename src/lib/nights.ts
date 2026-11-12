@@ -1,4 +1,4 @@
-import type { NightEntry, PosOrder } from '../data'
+import type { NightEntry, PosOrder, TeaSettlement } from '../data'
 
 /** Row shape returned by `select('*, night_item_sales(*), night_loans(*), night_staff_salaries(*)')` */
 export type NightRow = {
@@ -21,6 +21,7 @@ export type NightRow = {
   expense_other: number | string
   created_at: string
   orders?: PosOrder[] | null
+  tea_settlements?: TeaSettlement[] | null
   night_item_sales?: {
     item_id: string | null
     item_name: string
@@ -87,6 +88,7 @@ export function rowToNight(row: NightRow): NightEntry {
       value: n(s.line_total),
     })),
     orders: Array.isArray(row.orders) ? row.orders : [],
+    teaSettlements: Array.isArray(row.tea_settlements) ? row.tea_settlements : [],
     status: row.status,
   }
 }

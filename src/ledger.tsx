@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { LoanRecord, NightEntry, PosOrder } from './data'
+import type { LoanRecord, NightEntry, PosOrder, TeaSettlement } from './data'
 import { supabase, CLIENT_ID } from './lib/supabase'
 import { useRealtimeRefetch } from './lib/realtime'
 import { reportSyncError } from './lib/syncStatus'
@@ -51,6 +51,8 @@ export type NightDraft = {
   itemSales: NonNullable<NightEntry['itemSales']>
   /** POS sales of the night; counts and money are derived from these */
   orders: PosOrder[]
+  /** Tea cash confirmed per waiter */
+  teaSettlements?: TeaSettlement[]
 }
 
 type LedgerContextValue = {
@@ -142,6 +144,7 @@ function normalizeDraft(raw: unknown): NightDraft | null {
     loans: Array.isArray(d.loans) ? d.loans : [],
     itemSales: Array.isArray(d.itemSales) ? d.itemSales : [],
     orders: Array.isArray(d.orders) ? d.orders : [],
+    teaSettlements: Array.isArray(d.teaSettlements) ? d.teaSettlements : [],
   }
 }
 
@@ -163,6 +166,7 @@ function signature(draft: NightDraft | null, expenses: ExpenseState) {
       loans: d.loans,
       items: d.itemSales,
       orders: d.orders,
+      tea: d.teaSettlements ?? [],
     },
     e: expenses,
   })
@@ -240,6 +244,7 @@ function historyEntryFor(draft: NightDraft | null, expenses: ExpenseState): Nigh
     loans: draft?.loans ?? [],
     itemSales: draft?.itemSales ?? [],
     orders: draft?.orders ?? [],
+    teaSettlements: draft?.teaSettlements ?? [],
     status: hasExpenses ? 'FINALIZED' : 'SALES',
   }
 }

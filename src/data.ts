@@ -86,6 +86,23 @@ export type PosOrder = {
   returned?: { at: string; time: string; reason?: string | null } | null
 }
 
+/** Owner's confirmation of the shaah cash a waiter handed in */
+export type TeaSettlement = {
+  waiter: string
+  /** Cups the waiter had when the cash was confirmed */
+  cups: number
+  /** Money those cups should bring */
+  expected: number
+  /** Cups not paid for — signed to the waiter */
+  missingCups: number
+  /** Money the waiter owes for the missing cups */
+  owed: number
+  /** Cash actually received */
+  received: number
+  at: string
+  time: string
+}
+
 export type WaiterStat = {
   name: string
   orders: number
@@ -142,6 +159,8 @@ export type NightEntry = {
   itemSales?: { itemId: string; itemName: string; qty: number; unitPrice: number; value: number }[]
   /** Every POS sale of the night (with waiter) */
   orders?: PosOrder[]
+  /** Tea cash confirmed per waiter */
+  teaSettlements?: TeaSettlement[]
   /** SALES = night money saved before expenses; FINALIZED = expenses included */
   status: 'FINALIZED' | 'REVIEW' | 'SALES'
 }

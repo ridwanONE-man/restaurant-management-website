@@ -21,6 +21,9 @@ import {
   Users,
   Ban,
   ArrowLeft,
+  CircleCheck,
+  CircleAlert,
+  Undo2,
 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from './auth'
@@ -36,6 +39,7 @@ import {
   type MenuItem,
   type NightEntry,
   type PosOrder,
+  type TeaSettlement,
   waiterStats,
 } from './data'
 import { useWaiters } from './waiters'
@@ -90,11 +94,12 @@ function countsFromOrders(menu: MenuItem[], orders: PosOrder[]) {
 }
 
 /** Fingerprint of what auto-save would write — skips saves for changes that came from another device */
-function autoSaveSig(orders: PosOrder[], loans: LoanRecord[], expenses: unknown) {
+function autoSaveSig(orders: PosOrder[], loans: LoanRecord[], expenses: unknown, tea: TeaSettlement[] = []) {
   return JSON.stringify({
     orders: orders.map((o) => [o.id, o.total, o.waiter ?? '', o.returned ? 1 : 0]),
     loans,
     expenses,
+    tea: tea.map((t) => [t.waiter, t.cups, t.missingCups, t.received]),
   })
 }
 
@@ -129,7 +134,10 @@ export default function NewEntry() {
   const [orders, setOrders] = useState<PosOrder[]>(() => ordersFromDraft(menu, nightDraft))
   const counts = useMemo(() => countsFromOrders(menu, orders), [menu, orders])
   const [loanRecords, setLoanRecords] = useState<LoanRecord[]>(() => nightDraft?.loans ?? [])
-  const lastAutoSig = useRef(autoSaveSig(orders, loanRecords, expenses))
+  /** Tea cash the owner confirmed per waiter */
+  const [teaSettlements, setTeaSettlements] = useState<TeaSettlement[]>(() => nightDraft?.teaSettlements ?? [])
+  const [missingCups, setMissingCups] = useState<Record<string, number>>({})
+  const lastAutoSig = useRef(autoSaveSig(orders, loanRecords, expenses, teaSettlements))
   /** The order being rung up on this device (shared once it is completed) */
   const [ticket, setTicket] = useState<Record<string, number>>({})
   const [ticketWaiter, setTicketWaiter] = useState('')
@@ -215,9 +223,11 @@ export default function NewEntry() {
       loans: loanRecords,
       itemSales,
       orders,
+      teaSettlements,
     })
   }, [
     orders,
+    teaSettlements,
     cashSlsh,
     covers,
     grossSlsh,
@@ -235,6 +245,8 @@ export default function NewEntry() {
     setOrders([])
     setTicket({})
     setTicketError('')
+    setTeaSettlements([])
+    setMissingCups({})
     setLoanRecords([])
     setLoanDrafts({})
     setLoanError('')
@@ -249,18 +261,20 @@ export default function NewEntry() {
     if (draftRevision === 0) return
     const nextOrders = ordersFromDraft(menu, nightDraft)
     const nextLoans = nightDraft?.loans ?? []
+    const nextTea = nightDraft?.teaSettlements ?? []
     nightIdRef.current = nightDraft?.id ?? String(Date.now())
     setOrders(nextOrders)
     setLoanRecords(nextLoans)
+    setTeaSettlements(nextTea)
     setLoanError('')
-    lastAutoSig.current = autoSaveSig(nextOrders, nextLoans, expenses)
+    lastAutoSig.current = autoSaveSig(nextOrders, nextLoans, expenses, nextTea)
     // only react to remote revisions
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftRevision])
 
   /** Auto-save to History whenever sales / loans change */
   useEffect(() => {
-    const sig = autoSaveSig(orders, loanRecords, expenses)
+    const sig = autoSaveSig(orders, loanRecords, expenses, teaSettlements)
     if (sig === lastAutoSig.current) return
     if (!covers && !loanRecords.length) return
 
@@ -277,6 +291,7 @@ export default function NewEntry() {
         loans: loanRecords,
         itemSales,
         orders,
+        teaSettlements,
       }
       setNightDraft(draft)
       const entry: NightEntry = {
@@ -304,6 +319,7 @@ export default function NewEntry() {
   }, [
     cashSlsh,
     orders,
+    teaSettlements,
     covers,
     expenses,
     grossSlsh,
@@ -391,6 +407,72 @@ export default function NewEntry() {
     return detail
   }, [liveOrders])
 
+  /* ------------------------------------------------------- loans per box */
+  const categoryOfItem = useMemo(() => new Map(menu.map((m) => [m.id, m.category])), [menu])
+  const loanGroupOf = (loan: LoanRecord): MenuGroup => groupOfCategory(categoryOfItem.get(loan.itemId) ?? 'grill')
+  const groupLoans = useMemo(() => {
+    const totals: Record<MenuGroup, { qty: number; value: number }> = {
+      fastfood: { qty: 0, value: 0 },
+      cuntowadani: { qty: 0, value: 0 },
+      shaah: { qty: 0, value: 0 },
+    }
+    for (const loan of loanRecords) {
+      const t = totals[groupOfCategory(categoryOfItem.get(loan.itemId) ?? 'grill')]
+      t.qty += loan.qty
+      t.value += loan.value
+    }
+    return totals
+  }, [categoryOfItem, loanRecords])
+  /** Loan Book only works inside Fast Food / Cuntowadani pages, filtered to that box */
+  const boxSoldItems = activeGroup ? soldItems.filter((item) => groupOfCategory(item.category) === activeGroup) : []
+  const boxLoanRecords = activeGroup ? loanRecords.filter((loan) => loanGroupOf(loan) === activeGroup) : []
+
+  /* --------------------------------------------------------- tea cash */
+  const teaRows = useMemo(
+    () =>
+      waiterStats(orders).map((w) => {
+        const settlement = teaSettlements.find((t) => t.waiter.toLowerCase() === w.name.toLowerCase()) ?? null
+        const avgPrice = w.shaahCups ? w.value / w.shaahCups : 0
+        const status: 'pending' | 'confirmed' | 'more' = !settlement
+          ? 'pending'
+          : w.shaahCups > settlement.cups
+            ? 'more'
+            : 'confirmed'
+        return { ...w, avgPrice, settlement, status, newCups: settlement ? Math.max(0, w.shaahCups - settlement.cups) : w.shaahCups }
+      }),
+    [orders, teaSettlements],
+  )
+  const teaTotals = useMemo(() => {
+    const expected = teaRows.reduce((s, r) => s + r.value, 0)
+    const received = teaSettlements.reduce((s, t) => s + t.received, 0)
+    const owed = teaSettlements.reduce((s, t) => s + t.owed, 0)
+    const owedCups = teaSettlements.reduce((s, t) => s + t.missingCups, 0)
+    return { expected, received, owed, owedCups, pending: Math.max(0, expected - received - owed) }
+  }, [teaRows, teaSettlements])
+
+  function confirmTea(row: (typeof teaRows)[number]) {
+    const key = row.name.toLowerCase()
+    const missing = Math.min(row.shaahCups, Math.max(0, Math.floor(missingCups[key] ?? 0)))
+    const owed = Math.round(missing * row.avgPrice)
+    const settlement: TeaSettlement = {
+      waiter: row.name,
+      cups: row.shaahCups,
+      expected: row.value,
+      missingCups: missing,
+      owed,
+      received: row.value - owed,
+      at: new Date().toISOString(),
+      time: timeNowLabel(),
+    }
+    setTeaSettlements((prev) => [...prev.filter((t) => t.waiter.toLowerCase() !== key), settlement])
+    setMissingCups((prev) => ({ ...prev, [key]: 0 }))
+  }
+
+  function undoTea(waiter: string) {
+    if (!window.confirm(`Undo the tea cash confirmation for ${waiter}?`)) return
+    setTeaSettlements((prev) => prev.filter((t) => t.waiter.toLowerCase() !== waiter.toLowerCase()))
+  }
+
   /* ------------------------------------------------------------------ POS */
   const ticketLines = useMemo(
     () =>
@@ -403,7 +485,6 @@ export default function NewEntry() {
   const ticketTotal = ticketLines.reduce((sum, row) => sum + row.qty * row.item.price, 0)
   const ticketHasShaah = ticketLines.some((row) => row.item.category === 'shaah')
 
-  const waiterActivity = useMemo(() => waiterStats(orders), [orders])
 
   function addToTicket(item: MenuItem) {
     setTicket((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }))
@@ -527,6 +608,7 @@ export default function NewEntry() {
         loans: loanRecords,
         itemSales,
         orders,
+        teaSettlements,
         status: 'SALES',
       }
     )
@@ -839,6 +921,81 @@ export default function NewEntry() {
           </div>
 
           <p className="group-hint">Tap Fast Food, Cuntowadani or Shaah to open its page and start selling.</p>
+
+          <div className="dash-mini">
+            <section className="dash-card dash-card--loans">
+              <header>
+                <HandCoins size={17} />
+                <h2>Loans</h2>
+                <strong>{formatSlshAmount(loanSlsh)}</strong>
+              </header>
+              <div className="dash-card__split">
+                <Link to="/app/entry/fastfood">
+                  Fast Food <b>{formatSlshAmount(groupLoans.fastfood.value)}</b>
+                </Link>
+                <Link to="/app/entry/cuntowadani">
+                  Cuntowadani <b>{formatSlshAmount(groupLoans.cuntowadani.value)}</b>
+                </Link>
+              </div>
+              {loansByPerson.length ? (
+                <ul className="dash-card__list">
+                  {loansByPerson.slice(0, 3).map((person) => (
+                    <li key={`${person.name}-${person.phone}`}>
+                      <span>{person.name}</span>
+                      <b>{formatSlshAmount(person.total)}</b>
+                    </li>
+                  ))}
+                  {loansByPerson.length > 3 ? <li className="is-more">+{loansByPerson.length - 3} more</li> : null}
+                </ul>
+              ) : (
+                <p className="dash-card__empty">No loans tonight.</p>
+              )}
+            </section>
+
+            <section className="dash-card dash-card--tea">
+              <header>
+                <Coffee size={17} />
+                <h2>Tea cash</h2>
+                <strong>{formatSlshAmount(teaTotals.expected)}</strong>
+              </header>
+              <div className="dash-card__split">
+                <span>
+                  Confirmed <b className="is-ok">{formatSlshAmount(teaTotals.received)}</b>
+                </span>
+                <span>
+                  {teaTotals.owed ? 'Owed' : 'Pending'}{' '}
+                  <b className={teaTotals.owed ? 'is-bad' : undefined}>
+                    {formatSlshAmount(teaTotals.owed || teaTotals.pending)}
+                  </b>
+                </span>
+              </div>
+              {teaRows.length ? (
+                <ul className="dash-card__list">
+                  {teaRows.map((row) => (
+                    <li key={row.name}>
+                      <span>
+                        {row.name} · {row.shaahCups} cups
+                      </span>
+                      <em className={`tea-chip is-${row.status}`}>
+                        {row.status === 'confirmed'
+                          ? row.settlement?.missingCups
+                            ? `Owes ${row.settlement.missingCups}`
+                            : 'Confirmed'
+                          : row.status === 'more'
+                            ? `+${row.newCups} new`
+                            : 'Pending'}
+                      </em>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="dash-card__empty">No shaah sold yet.</p>
+              )}
+              <Link to="/app/entry/shaah" className="dash-card__cta">
+                Confirm tea cash
+              </Link>
+            </section>
+          </div>
           </>
           ) : null}
 
@@ -848,34 +1005,6 @@ export default function NewEntry() {
               className={`group-space group-space--${activeGroup}`}
               aria-label={activeGroupInfo?.title}
             >
-
-              <div className="group-space__stats">
-                <div>
-                  <small>{activeGroup === 'shaah' ? 'Cups' : 'Sold'}</small>
-                  <b>{groupTotals[activeGroup].qty}</b>
-                </div>
-                <div>
-                  <small>Money</small>
-                  <b>{formatSlshAmount(groupTotals[activeGroup].value)}</b>
-                </div>
-                <div>
-                  <small>Receipts</small>
-                  <b>{groupDetail[activeGroup].receipts}</b>
-                </div>
-                <div>
-                  {activeGroup === 'shaah' ? (
-                    <>
-                      <small>Waiters</small>
-                      <b>{waiterActivity.length}</b>
-                    </>
-                  ) : (
-                    <>
-                      <small>Share</small>
-                      <b>{grossSlsh ? Math.round((groupTotals[activeGroup].value / grossSlsh) * 100) : 0}%</b>
-                    </>
-                  )}
-                </div>
-              </div>
 
               {groupDetail[activeGroup].top.length ? (
                 <div className="group-space__top">
@@ -947,44 +1076,326 @@ export default function NewEntry() {
               })}
 
               {activeGroup === 'shaah' ? (
-                <section className="panel waiter-panel">
+                <section className="panel tea-cash">
                   <header>
                     <Users size={18} className="accent-orange" />
                     <div>
-                      <h2>Tea waiters</h2>
-                      <p>Shaah served tonight per waiter · compare days in Analytics</p>
+                      <h2>Tea waiters · cash</h2>
+                      <p>Confirm the shaah money each waiter hands in. Missing cups are signed to that waiter.</p>
                     </div>
                   </header>
-                  {waiterActivity.length ? (
-                    <ol className="waiter-rank">
-                      {waiterActivity.map((w, i) => {
-                        const top = waiterActivity[0].shaahCups || 1
+                  {teaRows.length ? (
+                    <ul className="tea-list">
+                      {teaRows.map((row) => {
+                        const key = row.name.toLowerCase()
+                        const missing = Math.min(row.shaahCups, Math.max(0, missingCups[key] ?? 0))
+                        const toReceive = row.value - Math.round(missing * row.avgPrice)
                         return (
-                          <li key={w.name}>
-                            <span className="waiter-rank__pos">{i + 1}</span>
-                            <div className="waiter-rank__body">
-                              <div className="waiter-rank__row">
-                                <strong>{w.name}</strong>
+                          <li key={row.name} className={`tea-row is-${row.status}`}>
+                            <div className="tea-row__head">
+                              <span className="tea-row__avatar" aria-hidden>
+                                {row.name.slice(0, 1).toUpperCase()}
+                              </span>
+                              <div className="tea-row__who">
+                                <strong>{row.name}</strong>
                                 <span>
-                                  <b>{w.shaahCups}</b> cups
+                                  {row.shaahCups} cup{row.shaahCups === 1 ? '' : 's'} · {formatSlshAmount(row.value)}
                                 </span>
                               </div>
-                              <div className="waiter-rank__bar">
-                                <i style={{ width: `${Math.max(4, (w.shaahCups / top) * 100)}%` }} />
-                              </div>
-                              <small>
-                                {w.orders} order{w.orders === 1 ? '' : 's'} · {formatSlshAmount(w.value)}
-                              </small>
+                              <span className={`tea-chip is-${row.status}`}>
+                                {row.status === 'confirmed'
+                                  ? 'Confirmed'
+                                  : row.status === 'more'
+                                    ? `+${row.newCups} new`
+                                    : 'Not confirmed'}
+                              </span>
                             </div>
+
+                            {row.settlement ? (
+                              <div className="tea-row__done">
+                                <span>
+                                  <CircleCheck size={15} /> Received {formatSlshAmount(row.settlement.received)} at{' '}
+                                  {row.settlement.time}
+                                </span>
+                                {row.settlement.missingCups ? (
+                                  <span className="tea-row__owes">
+                                    <CircleAlert size={15} /> Owes {row.settlement.missingCups} cup
+                                    {row.settlement.missingCups === 1 ? '' : 's'} ·{' '}
+                                    {formatSlshAmount(row.settlement.owed)}
+                                  </span>
+                                ) : null}
+                                <button type="button" className="tea-row__undo" onClick={() => undoTea(row.name)}>
+                                  <Undo2 size={14} /> Undo
+                                </button>
+                              </div>
+                            ) : null}
+
+                            {row.status !== 'confirmed' ? (
+                              <div className="tea-row__form">
+                                <label>
+                                  <span>Missing cups</span>
+                                  <div className="pos-lines__qty">
+                                    <button
+                                      type="button"
+                                      aria-label="One less missing cup"
+                                      onClick={() => setMissingCups((p) => ({ ...p, [key]: Math.max(0, missing - 1) }))}
+                                    >
+                                      <Minus size={14} />
+                                    </button>
+                                    <b>{missing}</b>
+                                    <button
+                                      type="button"
+                                      aria-label="One more missing cup"
+                                      onClick={() =>
+                                        setMissingCups((p) => ({ ...p, [key]: Math.min(row.shaahCups, missing + 1) }))
+                                      }
+                                    >
+                                      <Plus size={14} />
+                                    </button>
+                                  </div>
+                                </label>
+                                <div className="tea-row__receive">
+                                  <small>Cash to receive</small>
+                                  <b>{formatSlshAmount(toReceive)}</b>
+                                </div>
+                                <button type="button" className="tea-row__confirm" onClick={() => confirmTea(row)}>
+                                  <CircleCheck size={16} />
+                                  {row.status === 'more' ? 'Confirm again' : 'Confirm cash'}
+                                </button>
+                              </div>
+                            ) : null}
                           </li>
                         )
                       })}
-                    </ol>
+                    </ul>
                   ) : (
-                    <p className="loan-empty">Pick a waiter when you sell shaah — their totals show up here.</p>
+                    <p className="loan-empty">Pick a waiter when you sell shaah — they show up here to confirm their cash.</p>
                   )}
                 </section>
-              ) : null}
+              ) : (
+                <section className="panel loan-book">
+                  <header>
+                    <HandCoins size={18} className="accent-orange" />
+                    <div>
+                      <h2>Loan Book · {activeGroupInfo?.title}</h2>
+                      <p>
+                        Items sold tonight appear here. Mark how many were taken on loan and by whom
+                        (example: sold 20 sandwiches, 2 on loan).
+                      </p>
+                    </div>
+                  </header>
+
+                  {!boxSoldItems.length ? (
+                    <p className="loan-empty">
+                      Nothing here yet. Complete a sale above first — only sold items can be put on loan.
+                    </p>
+                  ) : (
+                    <div className="loan-sold-list">
+                      {boxSoldItems.map((item) => {
+                        const Icon = getMenuIcon(item.icon)
+                        const sold = counts[item.id] ?? 0
+                        const loaned = loanQtyByItem[item.id] ?? 0
+                        const left = sold - loaned
+                        const draft = getDraft(item.id)
+                        const draftQty = Math.min(draft.qty, Math.max(1, left || 1))
+                        return (
+                          <article key={item.id} className={`loan-sold-row tone-${item.category}`}>
+                            <div className="loan-sold-row__head">
+                              <div className="loan-sold-row__icon">
+                                <Icon size={18} />
+                              </div>
+                              <div>
+                                <h3>{item.name}</h3>
+                                <p>
+                                  Sold <strong>{sold}</strong> · Paid <strong>{sold - loaned}</strong> · Loan{' '}
+                                  <strong>{loaned}</strong> · Left to loan <strong>{left}</strong>
+                                </p>
+                              </div>
+                              <span className="loan-sold-row__price">{item.price.toLocaleString()} SLSH</span>
+                            </div>
+
+                            <div className="loan-sold-row__controls">
+                              <label>
+                                <span>PERSON NAME</span>
+                                <div className="money-input">
+                                  <UserRound size={16} />
+                                  <input
+                                    type="text"
+                                    value={draft.name}
+                                    placeholder="Who took this loan?"
+                                    onChange={(e) => setDraftName(item.id, e.target.value)}
+                                  />
+                                </div>
+                              </label>
+
+                              <label>
+                                <span>PHONE NUMBER</span>
+                                <div className="money-input">
+                                  <Phone size={16} />
+                                  <input
+                                    type="tel"
+                                    value={draft.phone}
+                                    placeholder="e.g. 063-4412345"
+                                    onChange={(e) => setDraftPhone(item.id, e.target.value)}
+                                  />
+                                </div>
+                              </label>
+
+                              <label>
+                                <span>SUBTRACT AS LOAN</span>
+                                <div className="counter counter--loan loan-qty-counter">
+                                  <button
+                                    type="button"
+                                    className="counter-btn minus"
+                                    onClick={() => bumpDraftQty(item.id, -1)}
+                                    disabled={draftQty <= 1 || left < 1}
+                                  >
+                                    <Minus size={16} />
+                                  </button>
+                                  <strong>{left < 1 ? 0 : draftQty}</strong>
+                                  <button
+                                    type="button"
+                                    className="counter-btn plus loan-plus"
+                                    onClick={() => bumpDraftQty(item.id, 1)}
+                                    disabled={draftQty >= left || left < 1}
+                                  >
+                                    <Plus size={16} />
+                                  </button>
+                                </div>
+                              </label>
+
+                              <button
+                                type="button"
+                                className="loan-add-btn"
+                                onClick={() => takeLoan(item.id)}
+                                disabled={left < 1}
+                              >
+                                Take loan
+                              </button>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {loanError ? <p className="loan-error">{loanError}</p> : null}
+
+                  {boxLoanRecords.length ? (
+                    <div className="loan-table-wrap">
+                      <table className="loan-table">
+                        <thead>
+                          <tr>
+                            <th>Person</th>
+                            <th>Number</th>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Value</th>
+                            <th>Adjust</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {boxLoanRecords.map((loan) => (
+                            <tr key={loan.id}>
+                              <td>
+                                <strong>{loan.personName}</strong>
+                              </td>
+                              <td>{loan.phoneNumber || '—'}</td>
+                              <td>{loan.itemName}</td>
+                              <td>{loan.qty}</td>
+                              <td>{formatSlshAmount(loan.value)}</td>
+                              <td>
+                                <div className="loan-row-actions">
+                                  <button
+                                    type="button"
+                                    className="loan-adjust"
+                                    aria-label="Subtract one"
+                                    onClick={() => adjustLoanRecord(loan.id, -1)}
+                                  >
+                                    <Minus size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="loan-adjust"
+                                    aria-label="Add one"
+                                    disabled={((counts[loan.itemId] ?? 0) - (loanQtyByItem[loan.itemId] ?? 0)) < 1}
+                                    onClick={() => {
+                                      const left = (counts[loan.itemId] ?? 0) - (loanQtyByItem[loan.itemId] ?? 0)
+                                      if (left < 1) {
+                                        setLoanError(`No more ${loan.itemName} left to loan.`)
+                                        return
+                                      }
+                                      adjustLoanRecord(loan.id, 1)
+                                    }}
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="loan-remove"
+                                    aria-label={`Remove loan for ${loan.personName}`}
+                                    onClick={() => removeLoan(loan.id)}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : boxSoldItems.length ? (
+                    <p className="loan-empty">
+                      Enter a name, set how many to subtract as loan, then press Take loan.
+                    </p>
+                  ) : null}
+                </section>
+              )}
+
+              {/* ---- tonight in this box (bottom of the page) ---- */}
+              <div className="group-space__totals">
+                <h3>Tonight in {activeGroupInfo?.title}</h3>
+                {activeGroup === 'shaah' ? (
+                  <div className="group-space__stats">
+                    <div>
+                      <small>Cups sold</small>
+                      <b>{groupTotals.shaah.qty}</b>
+                    </div>
+                    <div>
+                      <small>Money</small>
+                      <b>{formatSlshAmount(groupTotals.shaah.value)}</b>
+                    </div>
+                    <div className="is-ok">
+                      <small>Cash confirmed</small>
+                      <b>{formatSlshAmount(teaTotals.received)}</b>
+                    </div>
+                    <div className={teaTotals.owed ? 'is-bad' : undefined}>
+                      <small>Owed by waiters</small>
+                      <b>{formatSlshAmount(teaTotals.owed)}</b>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group-space__stats">
+                    <div>
+                      <small>Sold</small>
+                      <b>{groupTotals[activeGroup].qty}</b>
+                    </div>
+                    <div>
+                      <small>Money</small>
+                      <b>{formatSlshAmount(groupTotals[activeGroup].value)}</b>
+                    </div>
+                    <div className="is-warn">
+                      <small>On loan</small>
+                      <b>{formatSlshAmount(groupLoans[activeGroup].value)}</b>
+                    </div>
+                    <div className="is-ok">
+                      <small>Total cash</small>
+                      <b>{formatSlshAmount(groupTotals[activeGroup].value - groupLoans[activeGroup].value)}</b>
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
           ) : null}
         </div>
@@ -1166,185 +1577,6 @@ export default function NewEntry() {
         </section>
 
       </div>
-
-      <section className="panel loan-book">
-        <header>
-          <HandCoins size={18} className="accent-orange" />
-          <div>
-            <h2>Loan Book</h2>
-            <p>
-              Items sold tonight appear here. Mark how many were taken on loan and by whom
-              (example: sold 20 sandwiches, 2 on loan).
-            </p>
-          </div>
-        </header>
-
-        {!soldItems.length ? (
-          <p className="loan-empty">
-            Nothing here yet. Complete a sale above first — only sold items can be put on loan.
-          </p>
-        ) : (
-          <div className="loan-sold-list">
-            {soldItems.map((item) => {
-              const Icon = getMenuIcon(item.icon)
-              const sold = counts[item.id] ?? 0
-              const loaned = loanQtyByItem[item.id] ?? 0
-              const left = sold - loaned
-              const draft = getDraft(item.id)
-              const draftQty = Math.min(draft.qty, Math.max(1, left || 1))
-              return (
-                <article key={item.id} className={`loan-sold-row tone-${item.category}`}>
-                  <div className="loan-sold-row__head">
-                    <div className="loan-sold-row__icon">
-                      <Icon size={18} />
-                    </div>
-                    <div>
-                      <h3>{item.name}</h3>
-                      <p>
-                        Sold <strong>{sold}</strong> · Paid <strong>{sold - loaned}</strong> · Loan{' '}
-                        <strong>{loaned}</strong> · Left to loan <strong>{left}</strong>
-                      </p>
-                    </div>
-                    <span className="loan-sold-row__price">{item.price.toLocaleString()} SLSH</span>
-                  </div>
-
-                  <div className="loan-sold-row__controls">
-                    <label>
-                      <span>PERSON NAME</span>
-                      <div className="money-input">
-                        <UserRound size={16} />
-                        <input
-                          type="text"
-                          value={draft.name}
-                          placeholder="Who took this loan?"
-                          onChange={(e) => setDraftName(item.id, e.target.value)}
-                        />
-                      </div>
-                    </label>
-
-                    <label>
-                      <span>PHONE NUMBER</span>
-                      <div className="money-input">
-                        <Phone size={16} />
-                        <input
-                          type="tel"
-                          value={draft.phone}
-                          placeholder="e.g. 063-4412345"
-                          onChange={(e) => setDraftPhone(item.id, e.target.value)}
-                        />
-                      </div>
-                    </label>
-
-                    <label>
-                      <span>SUBTRACT AS LOAN</span>
-                      <div className="counter counter--loan loan-qty-counter">
-                        <button
-                          type="button"
-                          className="counter-btn minus"
-                          onClick={() => bumpDraftQty(item.id, -1)}
-                          disabled={draftQty <= 1 || left < 1}
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <strong>{left < 1 ? 0 : draftQty}</strong>
-                        <button
-                          type="button"
-                          className="counter-btn plus loan-plus"
-                          onClick={() => bumpDraftQty(item.id, 1)}
-                          disabled={draftQty >= left || left < 1}
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    </label>
-
-                    <button
-                      type="button"
-                      className="loan-add-btn"
-                      onClick={() => takeLoan(item.id)}
-                      disabled={left < 1}
-                    >
-                      Take loan
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
-
-        {loanError ? <p className="loan-error">{loanError}</p> : null}
-
-        {loanRecords.length ? (
-          <div className="loan-table-wrap">
-            <table className="loan-table">
-              <thead>
-                <tr>
-                  <th>Person</th>
-                  <th>Number</th>
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Value</th>
-                  <th>Adjust</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loanRecords.map((loan) => (
-                  <tr key={loan.id}>
-                    <td>
-                      <strong>{loan.personName}</strong>
-                    </td>
-                    <td>{loan.phoneNumber || '—'}</td>
-                    <td>{loan.itemName}</td>
-                    <td>{loan.qty}</td>
-                    <td>{formatSlshAmount(loan.value)}</td>
-                    <td>
-                      <div className="loan-row-actions">
-                        <button
-                          type="button"
-                          className="loan-adjust"
-                          aria-label="Subtract one"
-                          onClick={() => adjustLoanRecord(loan.id, -1)}
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="loan-adjust"
-                          aria-label="Add one"
-                          disabled={((counts[loan.itemId] ?? 0) - (loanQtyByItem[loan.itemId] ?? 0)) < 1}
-                          onClick={() => {
-                            const left = (counts[loan.itemId] ?? 0) - (loanQtyByItem[loan.itemId] ?? 0)
-                            if (left < 1) {
-                              setLoanError(`No more ${loan.itemName} left to loan.`)
-                              return
-                            }
-                            adjustLoanRecord(loan.id, 1)
-                          }}
-                        >
-                          <Plus size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="loan-remove"
-                          aria-label={`Remove loan for ${loan.personName}`}
-                          onClick={() => removeLoan(loan.id)}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : soldItems.length ? (
-          <p className="loan-empty">
-            Enter a name, set how many to subtract as loan, then press Take loan.
-          </p>
-        ) : null}
-      </section>
 
       <div className="bottom-grid bottom-grid--summary">
         <section className="panel summary-panel summary-panel--wide">

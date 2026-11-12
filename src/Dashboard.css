@@ -773,3 +773,417 @@
     display: none;
   }
 }
+
+/* ---------- dashboard: concise Loans + Tea cash ---------- */
+.dash-mini {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.dash-card {
+  --c: var(--accent-2);
+  --c-rgb: var(--accent-2-rgb);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(var(--c-rgb), 0.3);
+  background: linear-gradient(160deg, rgba(var(--c-rgb), 0.09), transparent 60%), var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-card--tea {
+  --c: var(--teal);
+  --c-rgb: var(--teal-rgb);
+}
+
+.dash-card header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--c);
+}
+
+.dash-card h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.dash-card header strong {
+  margin-left: auto;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--c);
+  white-space: nowrap;
+}
+
+.dash-card__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.dash-card__split > * {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dash-card__split a:hover {
+  border-color: rgba(var(--c-rgb), 0.5);
+}
+
+.dash-card__split b {
+  color: var(--text);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-card b.is-ok {
+  color: var(--success);
+}
+
+.dash-card b.is-bad {
+  color: var(--danger);
+}
+
+.dash-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-card__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 0.85rem;
+}
+
+.dash-card__list li:last-child {
+  border-bottom: 0;
+}
+
+.dash-card__list li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-card__list li.is-more {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.dash-card__empty {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+
+.dash-card__cta {
+  align-self: flex-start;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(var(--c-rgb), 0.14);
+  color: var(--c);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+/* status chips (tea) */
+.tea-chip {
+  flex-shrink: 0;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tea-chip.is-pending {
+  background: rgba(var(--warn-rgb), 0.15);
+  color: var(--warn);
+}
+
+.tea-chip.is-more {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent);
+}
+
+.tea-chip.is-confirmed {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+/* ---------- Shaah page: tea cash per waiter ---------- */
+.tea-cash {
+  margin-top: 1rem;
+  box-shadow: none;
+}
+
+.tea-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tea-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.tea-row.is-confirmed {
+  border-color: rgba(var(--success-rgb), 0.35);
+}
+
+.tea-row__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.tea-row__avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(var(--teal-rgb), 0.15);
+  color: var(--teal);
+  font-weight: 800;
+}
+
+.tea-row__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tea-row__who strong {
+  font-size: 0.95rem;
+}
+
+.tea-row__who span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.tea-row__done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+}
+
+.tea-row__done > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.tea-row__done > span.tea-row__owes {
+  color: var(--danger);
+}
+
+.tea-row__undo {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.tea-row__form {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.tea-row__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.tea-row__form label > span,
+.tea-row__receive small {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tea-row__receive {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tea-row__receive b {
+  font-size: 1.05rem;
+  color: var(--teal);
+}
+
+.tea-row__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+/* ---------- box page: totals at the bottom ---------- */
+.group-space .loan-book {
+  margin-top: 1rem;
+  box-shadow: none;
+}
+
+.group-space__totals {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1.5px dashed rgba(var(--g-rgb), 0.4);
+}
+
+.group-space__totals h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--g);
+}
+
+.group-space__totals .group-space__stats {
+  margin-bottom: 0;
+}
+
+.group-space__stats div.is-ok {
+  background: rgba(var(--success-rgb), 0.1);
+  border-color: rgba(var(--success-rgb), 0.3);
+}
+
+.group-space__stats div.is-ok b {
+  color: var(--success);
+}
+
+.group-space__stats div.is-warn {
+  background: rgba(var(--accent-2-rgb), 0.1);
+  border-color: rgba(var(--accent-2-rgb), 0.3);
+}
+
+.group-space__stats div.is-warn b {
+  color: var(--accent-2);
+}
+
+.group-space__stats div.is-bad {
+  background: rgba(var(--danger-rgb), 0.1);
+  border-color: rgba(var(--danger-rgb), 0.3);
+}
+
+.group-space__stats div.is-bad b {
+  color: var(--danger);
+}
+
+@media (max-width: 1023px) {
+  .dash-mini {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .dash-mini {
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .dash-card {
+    padding: 0.85rem;
+    border-radius: 16px;
+  }
+
+  .tea-row__form {
+    grid-template-columns: auto 1fr;
+  }
+
+  .tea-row__confirm {
+    grid-column: 1 / -1;
+    justify-content: center;
+    min-height: 46px;
+  }
+}
+
+/* Loan Book inside a box page: 2 x 2 controls so nothing spills out */
+.group-space .loan-sold-row__controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+
+.group-space .loan-qty-counter {
+  min-width: 0;
+}
+
+.group-space .loan-add-btn {
+  width: 100%;
+  min-height: 44px;
+}
+
+@media (max-width: 900px) {
+  .group-space .loan-sold-row__controls {
+    grid-template-columns: 1fr;
+  }
+}
